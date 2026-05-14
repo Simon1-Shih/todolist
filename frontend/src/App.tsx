@@ -136,14 +136,22 @@ function App() {
 
   const handleAddCategory = async (name: string): Promise<Category | undefined> => {
     if (!name || name.trim() === '') return undefined;
+    const oldCategories = [...categories];
+    const tempId = Date.now();
+    const colors = ['bg-emerald-500', 'bg-indigo-500', 'bg-pink-500', 'bg-teal-500', 'bg-orange-500', 'bg-purple-500', 'bg-cyan-500'];
+    const color = colors[categories.length % colors.length];
+    const tempCat = { id: tempId, label: name.trim(), color };
+
+    // Optimistic Update
+    setCategories(prev => [...prev, tempCat]);
+
     try {
-      const colors = ['bg-emerald-500', 'bg-indigo-500', 'bg-pink-500', 'bg-teal-500', 'bg-orange-500', 'bg-purple-500', 'bg-cyan-500'];
-      const color = colors[categories.length % colors.length];
       const newCat = await api.createCategory({ label: name.trim(), color });
-      setCategories(prev => [...prev, newCat]);
+      setCategories(prev => prev.map(c => c.id === tempId ? newCat : c));
       return newCat;
     } catch (err) {
       console.error('Failed to create category:', err);
+      setCategories(oldCategories); // Rollback
       return undefined;
     }
   };

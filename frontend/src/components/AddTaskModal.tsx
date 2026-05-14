@@ -44,7 +44,7 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
         setPriority('Low');
       }
     }
-  }, [isOpen, editingTask, initialDate, categories]);
+  }, [isOpen, editingTask, initialDate]);
 
   if (!isOpen) return null;
 
