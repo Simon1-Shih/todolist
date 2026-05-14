@@ -6,18 +6,18 @@ interface SidebarProps {
   currentFilter: string;
   onSelectFilter: (filter: string) => void;
   categories: Category[];
-  onAddCategory: (name: string) => void;
-  onRenameCategory: (id: string, newLabel: string) => void;
-  onDeleteCategory: (id: string) => void;
-  onEmptyTrash?: () => void;
+  onAddCategory: (name: string) => Promise<Category | undefined>;
+  onRenameCategory: (id: number, newLabel: string) => Promise<void>;
+  onDeleteCategory: (id: number) => Promise<void>;
+  onEmptyTrash?: () => Promise<void>;
 }
 
 export function Sidebar({ currentFilter, onSelectFilter, categories, onAddCategory, onRenameCategory, onDeleteCategory, onEmptyTrash }: SidebarProps) {
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('New folder');
-  const [renamingCategoryId, setRenamingCategoryId] = useState<string | null>(null);
+  const [renamingCategoryId, setRenamingCategoryId] = useState<number | null>(null);
   const [editCategoryName, setEditCategoryName] = useState('');
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; categoryId: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; categoryId: number } | null>(null);
   const [trashContextMenu, setTrashContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [categoriesContextMenu, setCategoriesContextMenu] = useState<{ x: number; y: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -61,13 +61,13 @@ export function Sidebar({ currentFilter, onSelectFilter, categories, onAddCatego
     setRenamingCategoryId(null);
   };
 
-  const handleContextMenu = (e: React.MouseEvent, categoryId: string) => {
+  const handleContextMenu = (e: React.MouseEvent, categoryId: number) => {
     e.preventDefault();
     e.stopPropagation();
     setContextMenu({ x: e.clientX, y: e.clientY, categoryId });
   };
 
-  const handleStartRename = (categoryId: string) => {
+  const handleStartRename = (categoryId: number) => {
     const cat = categories.find(c => c.id === categoryId);
     if (cat) {
       setRenamingCategoryId(categoryId);

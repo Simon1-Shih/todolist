@@ -11,8 +11,8 @@ interface AddTaskModalProps {
   onSave?: (task: Task) => void;
 }
 
-export function AddTaskModal({ isOpen, onClose, categories, editingTask, initialDate, onSave, onAddCategory }: AddTaskModalProps & { onAddCategory?: (name: string) => Category | undefined }) {
-  const [selectedCats, setSelectedCats] = useState<string[]>([]);
+export function AddTaskModal({ isOpen, onClose, categories, editingTask, initialDate, onSave, onAddCategory }: AddTaskModalProps & { onAddCategory?: (name: string) => Promise<Category | undefined> }) {
+  const [selectedCats, setSelectedCats] = useState<number[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
@@ -48,18 +48,18 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
 
   if (!isOpen) return null;
 
-  const handleToggleCategory = (catId: string) => {
-    setSelectedCats(prev => 
+  const handleToggleCategory = (catId: number) => {
+    setSelectedCats(prev =>
       prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
     );
   };
 
-  const handleCreateCategory = (e: React.KeyboardEvent | React.FocusEvent) => {
+  const handleCreateCategory = async (e: React.KeyboardEvent | React.FocusEvent) => {
     if ('key' in e && e.key !== 'Enter') return;
     if ('key' in e) e.preventDefault();
-    
+
     if (newCategoryName.trim() && onAddCategory) {
-      const newCat = onAddCategory(newCategoryName.trim());
+      const newCat = await onAddCategory(newCategoryName.trim());
       if (newCat) {
         setSelectedCats(prev => [...prev, newCat.id]);
       }
@@ -72,7 +72,7 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
     e.preventDefault();
     if (onSave) {
       onSave({
-        id: editingTask ? editingTask.id : 0, // App handles generating new ID
+        id: editingTask ? editingTask.id : 0,
         title,
         description: description || undefined,
         date,
@@ -104,13 +104,13 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
           <div className="space-y-4">
             <div className="space-y-2">
               <label htmlFor="task-title" className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Task Title</label>
-              <input 
-                id="task-title" 
-                type="text" 
+              <input
+                id="task-title"
+                type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g. Design System Review" 
-                className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-[16px]" 
+                placeholder="e.g. Design System Review"
+                className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-[16px]"
                 autoFocus
                 required
               />
@@ -118,12 +118,12 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
 
             <div className="space-y-2">
               <label htmlFor="task-desc" className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Description (Optional)</label>
-              <textarea 
-                id="task-desc" 
+              <textarea
+                id="task-desc"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Add more details about this task..." 
-                className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-[14px] resize-none min-h-[80px]" 
+                placeholder="Add more details about this task..."
+                className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent transition-all outline-none text-[14px] resize-none min-h-[80px]"
               />
             </div>
           </div>
@@ -132,45 +132,45 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
             <div className="space-y-2">
               <label htmlFor="due-date" className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Due Date</label>
               <div className="relative">
-                <input 
-                  id="due-date" 
-                  type="date" 
+                <input
+                  id="due-date"
+                  type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary transition-all outline-none text-[14px]" 
+                  className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary transition-all outline-none text-[14px]"
                   required
                 />
                 <CalendarIcon size={16} className="absolute left-3 top-3.5 text-slate-400" />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <label htmlFor="due-time" className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Time (Optional)</label>
               <div className="relative">
-                <input 
-                  id="due-time" 
-                  type="time" 
+                <input
+                  id="due-time"
+                  type="time"
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary transition-all outline-none text-[14px]" 
+                  className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary transition-all outline-none text-[14px]"
                 />
                 <Clock size={16} className="absolute left-3 top-3.5 text-slate-400" />
               </div>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label htmlFor="estimated-time" className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Est. Time (Mins)</label>
               <div className="relative">
-                <input 
-                  id="estimated-time" 
-                  type="number" 
+                <input
+                  id="estimated-time"
+                  type="number"
                   min="1"
                   placeholder="e.g. 30"
                   value={estimatedTime}
                   onChange={(e) => setEstimatedTime(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary transition-all outline-none text-[14px]" 
+                  className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary transition-all outline-none text-[14px]"
                 />
                 <Timer size={16} className="absolute left-3 top-3.5 text-slate-400" />
               </div>
@@ -190,20 +190,20 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
             <label className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Category</label>
             <div className="flex flex-wrap gap-2 mt-2 items-center">
               {categories.map(cat => (
-                <button 
+                <button
                   key={cat.id}
-                  type="button" 
+                  type="button"
                   onClick={() => handleToggleCategory(cat.id)}
                   className={`px-4 py-2 rounded-full text-[12px] font-semibold transition-all shadow-sm ${
-                    selectedCats.includes(cat.id) 
-                      ? 'bg-primary text-white' 
+                    selectedCats.includes(cat.id)
+                      ? 'bg-primary text-white'
                       : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
                   }`}
                 >
                   {cat.label}
                 </button>
               ))}
-              
+
               {isCreatingCategory ? (
                 <input
                   type="text"
