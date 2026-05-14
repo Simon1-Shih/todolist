@@ -44,13 +44,13 @@ function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // 初始加載
+  // 初始加載：一次性拉取所有任務 (含垃圾桶) 與分類
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
         const [taskData, catData] = await Promise.all([
-          api.getTasks(),
+          api.getTasks({ filter: 'full' }),
           api.getCategories(),
         ]);
         setTasks(taskData || []);
@@ -63,29 +63,8 @@ function App() {
     })();
   }, []);
 
-  // 當 filter / search 變化時，重新拉取 tasks（後端會做篩選和排序）
-  useEffect(() => {
-    if (loading) return;
-    (async () => {
-      try {
-        const params: Record<string, string> = {
-          filter: currentFilter === 'trash' ? 'trash' :
-                  currentFilter === 'today' ? 'today' :
-                  currentFilter === 'important' ? 'important' :
-                  currentFilter === 'completed' ? 'completed' :
-                  currentFilter.startsWith('category-') ? currentFilter :
-                  'all',
-          search: searchQuery,
-          sort_by: 'date',
-          sort_order: 'asc',
-        };
-        const data = await api.getTasks(params);
-        setTasks(data || []);
-      } catch (err) {
-        console.error('Failed to fetch tasks:', err);
-      }
-    })();
-  }, [currentFilter, searchQuery]);
+  // 移除原本每當 filter/search 變化就重新 fetch 的 useEffect
+  // 所有篩選改在前端 useMemo 進行
 
   const handleOpenAddTask = (date?: string) => {
     setEditingTask(null);
@@ -112,8 +91,20 @@ function App() {
   };
 
   const handleSaveTask = async (task: Task) => {
+    const isEditing = !!editingTask;
+    const oldTasks = [...tasks];
+
+    // Optimistic Update
+    if (isEditing) {
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...task } : t));
+    } else {
+      // 暫時產生一個臨時 ID
+      const tempTask = { ...task, id: Date.now(), completed: false, important: false, isDeleted: false };
+      setTasks(prev => [...prev, tempTask]);
+    }
+
     try {
-      if (editingTask) {
+      if (isEditing) {
         const updated = await api.updateTask(task.id, {
           title: task.title,
           description: task.description || '',
@@ -134,10 +125,12 @@ function App() {
           categoryIds: task.categoryIds,
           priority: task.priority,
         });
-        setTasks(prev => [...prev, created]);
+        // 用後端回傳的真實數據替換暫時數據
+        setTasks(prev => prev.map(t => t.title === created.title && t.date === created.date ? created : t));
       }
     } catch (err) {
       console.error('Failed to save task:', err);
+      setTasks(oldTasks); // Rollback
     }
   };
 
@@ -157,76 +150,118 @@ function App() {
 
   const handleRenameCategory = async (id: number, newLabel: string) => {
     if (!newLabel || newLabel.trim() === '') return;
+    const oldCategories = [...categories];
+    // Optimistic Update
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, label: newLabel.trim() } : c));
+
     try {
       const updated = await api.updateCategory(id, { label: newLabel.trim() });
       setCategories(prev => prev.map(c => c.id === id ? updated : c));
     } catch (err) {
       console.error('Failed to rename category:', err);
+      setCategories(oldCategories); // Rollback
     }
   };
 
   const handleDeleteCategory = async (id: number) => {
+    const oldCategories = [...categories];
+    const oldFilter = currentFilter;
+
+    // Optimistic Delete
+    setCategories(prev => prev.filter(c => c.id !== id));
+    if (currentFilter === `category-${id}`) {
+      setCurrentFilter('all');
+    }
+
     try {
       await api.deleteCategory(id);
-      setCategories(prev => prev.filter(c => c.id !== id));
-      if (currentFilter === `category-${id}`) {
-        setCurrentFilter('all');
-      }
     } catch (err) {
       console.error('Failed to delete category:', err);
+      setCategories(oldCategories); // Rollback
+      setCurrentFilter(oldFilter);
     }
   };
 
   const handleToggleImportant = async (taskId: number) => {
+    const oldTasks = [...tasks];
+    // Optimistic Update
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, important: !t.important } : t));
+
     try {
       const updated = await api.toggleImportant(taskId);
       setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
     } catch (err) {
       console.error('Failed to toggle important:', err);
+      setTasks(oldTasks); // Rollback
     }
   };
 
   const handleToggleComplete = async (taskId: number) => {
+    const oldTasks = [...tasks];
+    // Optimistic Update
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
+
     try {
       const updated = await api.toggleComplete(taskId);
       setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
     } catch (err) {
       console.error('Failed to toggle complete:', err);
+      setTasks(oldTasks); // Rollback
     }
   };
 
   const handleDeleteTask = async (taskId: number) => {
     const task = tasks.find(t => t.id === taskId);
-    if (task && task.isDeleted) {
-      // 在 Trash（垃圾桶）裡按下刪除，只刪這一筆！
+    if (!task) return;
+
+    const oldTasks = [...tasks];
+    
+    if (task.isDeleted) {
+      // Optimistic Delete from Trash
+      setTasks(prev => prev.filter(t => t.id !== taskId));
       try {
         await api.purgeSingleTask(taskId);
-        setTasks(prev => prev.filter(t => t.id !== taskId));
       } catch (err) {
         console.error('Failed to permanently delete task:', err);
+        setTasks(oldTasks); // Rollback
       }
     } else {
+      // Optimistic Move to Trash
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, isDeleted: true } : t));
       try {
         const updated = await api.deleteTask(taskId);
         setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
       } catch (err) {
         console.error('Failed to delete task:', err);
+        setTasks(oldTasks); // Rollback
       }
     }
   };
 
   const handleEmptyTrash = async () => {
+    const oldTasks = [...tasks];
+    // Optimistic Empty Trash
+    setTasks(prev => prev.filter(t => !t.isDeleted));
+
     try {
       await api.purgeTasks();
-      setTasks(prev => prev.filter(t => !t.isDeleted));
     } catch (err) {
       console.error('Failed to empty trash:', err);
+      setTasks(oldTasks); // Rollback
     }
   };
 
-  // 排序（前端補充排序，因為後端篩選後仍然會回傳所有匹配項目）
-  const sortedTasks = useMemo(() => {
-    let result = [...tasks];
+  // 排序與搜尋（前端進行）
+  const processedTasks = useMemo(() => {
+    let result = tasks.filter(t => {
+      // 全局搜尋過濾
+      if (searchQuery) {
+        return t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+               (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()));
+      }
+      return true;
+    });
+
     result.sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date);
       const timeA = a.time || '00:00';
@@ -236,7 +271,9 @@ function App() {
       return (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3);
     });
     return result;
-  }, [tasks]);
+  }, [tasks, searchQuery]);
+
+  const sortedTasks = processedTasks; // 為了保持變數名稱一致
 
   let filteredTasks = sortedTasks;
   let viewTitle = 'All Tasks';

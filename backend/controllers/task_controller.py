@@ -16,6 +16,9 @@ class TaskController:
 
         if filter_type == 'trash':
             tasks = tasks.filter(Task.is_deleted == True)
+        elif filter_type == 'full':
+            # 不過濾 is_deleted，返回全部
+            pass
         else:
             tasks = tasks.filter(Task.is_deleted == False)
 
