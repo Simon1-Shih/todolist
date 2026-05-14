@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Calendar as CalendarIcon, Edit2, Trash2, CheckCircle2, Star, Clock, Plus } from 'lucide-react';
+import { Search, Calendar as CalendarIcon, Edit2, Trash2, CheckCircle2, Star, Clock, Plus, RotateCcw } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { Task, Category } from '../App';
 
@@ -13,8 +13,10 @@ interface DashboardProps {
   onToggleImportant: (id: number) => void;
   onToggleComplete: (id: number) => void;
   onDelete: (id: number) => void;
+  onRestore?: (id: number) => void;
   onEdit: (task: Task) => void;
   onAddTask: () => void;
+  isTrashView?: boolean;
 }
 
 const getTodayStr = () => {
@@ -28,7 +30,7 @@ const getTomorrowStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-export function Dashboard({ tasks, categories, title, description, searchQuery = "", onSearchChange, onToggleImportant, onToggleComplete, onDelete, onEdit, onAddTask }: DashboardProps) {
+export function Dashboard({ tasks, categories, title, description, searchQuery = "", onSearchChange, onToggleImportant, onToggleComplete, onDelete, onRestore, onEdit, onAddTask, isTrashView }: DashboardProps) {
   const completedTasks = tasks.filter(t => t.completed).length;
 
   const formatTaskDate = (task: Task) => {
@@ -65,13 +67,15 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
               className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-[16px]"
             />
           </div>
-          <button 
-            onClick={onAddTask}
-            className="bg-primary hover:bg-primary-container text-white px-5 py-3 rounded-xl text-[14px] font-semibold transition-all shadow-sm flex items-center gap-2"
-          >
-            <Plus size={18} />
-            Add Task
-          </button>
+          {!isTrashView && (
+            <button 
+              onClick={onAddTask}
+              className="bg-primary hover:bg-primary-container text-white px-5 py-3 rounded-xl text-[14px] font-semibold transition-all shadow-sm flex items-center gap-2"
+            >
+              <Plus size={18} />
+              Add Task
+            </button>
+          )}
         </div>
       </div>
 
@@ -93,17 +97,19 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
               )}
               
               <div className="flex-shrink-0">
-                {task.completed ? (
-                  <button onClick={() => onToggleComplete(task.id)} className="focus:outline-none">
-                    <CheckCircle2 size={24} className="text-primary fill-primary/20" />
-                  </button>
-                ) : (
-                  <input 
-                    type="checkbox" 
-                    checked={task.completed}
-                    onChange={() => onToggleComplete(task.id)}
-                    className="w-6 h-6 rounded-full border-2 border-slate-300 text-primary focus:ring-primary cursor-pointer transition-all aspect-square"
-                  />
+                {!isTrashView && (
+                  task.completed ? (
+                    <button onClick={() => onToggleComplete(task.id)} className="focus:outline-none">
+                      <CheckCircle2 size={24} className="text-primary fill-primary/20" />
+                    </button>
+                  ) : (
+                    <input 
+                      type="checkbox" 
+                      checked={task.completed}
+                      onChange={() => onToggleComplete(task.id)}
+                      className="w-6 h-6 rounded-full border-2 border-slate-300 text-primary focus:ring-primary cursor-pointer transition-all aspect-square"
+                    />
+                  )
                 )}
               </div>
               
@@ -157,63 +163,88 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
               </div>
               
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mr-2">
-                <button 
-                  onClick={() => onEdit(task)}
-                  className="p-2 text-slate-400 hover:text-primary hover:bg-primary-fixed rounded-lg transition-all"
-                >
-                  <Edit2 size={18} />
-                </button>
-                <button 
-                  onClick={() => onDelete(task.id)}
-                  className="p-2 text-slate-400 hover:text-error hover:bg-error-container rounded-lg transition-all"
-                >
-                  <Trash2 size={18} />
-                </button>
+                {isTrashView ? (
+                  <>
+                    <button 
+                      onClick={() => onRestore?.(task.id)}
+                      className="p-2 text-slate-400 hover:text-primary hover:bg-primary-fixed rounded-lg transition-all"
+                      title="Restore"
+                    >
+                      <RotateCcw size={18} />
+                    </button>
+                    <button 
+                      onClick={() => onDelete(task.id)}
+                      className="p-2 text-slate-400 hover:text-error hover:bg-error-container rounded-lg transition-all"
+                      title="Delete Permanently"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button 
+                      onClick={() => onEdit(task)}
+                      className="p-2 text-slate-400 hover:text-primary hover:bg-primary-fixed rounded-lg transition-all"
+                    >
+                      <Edit2 size={18} />
+                    </button>
+                    <button 
+                      onClick={() => onDelete(task.id)}
+                      className="p-2 text-slate-400 hover:text-error hover:bg-error-container rounded-lg transition-all"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </>
+                )}
               </div>
 
-              <div className="flex items-center ml-2 border-l border-slate-100 pl-4">
-                <button 
-                  onClick={() => onToggleImportant(task.id)}
-                  className={`p-2 rounded-xl transition-all ${
-                    task.important 
-                      ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' 
-                      : 'text-slate-300 hover:text-amber-500 hover:bg-slate-50'
-                  }`}
-                  aria-label="Toggle importance"
-                >
-                  <Star fill={task.important ? 'currentColor' : 'none'} size={20} />
-                </button>
-              </div>
+              {!isTrashView && (
+                <div className="flex items-center ml-2 border-l border-slate-100 pl-4">
+                  <button 
+                    onClick={() => onToggleImportant(task.id)}
+                    className={`p-2 rounded-xl transition-all ${
+                      task.important 
+                        ? 'text-amber-500 bg-amber-50 hover:bg-amber-100' 
+                        : 'text-slate-300 hover:text-amber-500 hover:bg-slate-50'
+                    }`}
+                    aria-label="Toggle importance"
+                  >
+                    <Star fill={task.important ? 'currentColor' : 'none'} size={20} />
+                  </button>
+                </div>
+              )}
             </motion.div>
           );
         })}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-        <div className="bg-surface-container-low border border-slate-100 p-6 rounded-2xl shadow-sm flex flex-col justify-center">
-          <h4 className="text-[14px] font-medium text-on-surface-variant mb-4">Pending by Priority</h4>
-          <div className="flex gap-4">
-            <div className="flex-1 bg-red-50 rounded-xl p-3 text-center border border-red-100/50">
-              <span className="block text-[12px] font-bold text-red-600 uppercase tracking-wider mb-1">High</span>
-              <span className="block text-[24px] font-bold text-red-700">{tasks.filter(t => !t.completed && t.priority === 'High').length}</span>
-            </div>
-            <div className="flex-1 bg-blue-50 rounded-xl p-3 text-center border border-blue-100/50">
-              <span className="block text-[12px] font-bold text-blue-600 uppercase tracking-wider mb-1">Medium</span>
-              <span className="block text-[24px] font-bold text-blue-700">{tasks.filter(t => !t.completed && t.priority === 'Medium').length}</span>
-            </div>
-            <div className="flex-1 bg-slate-50 rounded-xl p-3 text-center border border-slate-100/50">
-              <span className="block text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1">Low</span>
-              <span className="block text-[24px] font-bold text-slate-700">{tasks.filter(t => !t.completed && t.priority === 'Low').length}</span>
+      {!isTrashView && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+          <div className="bg-surface-container-low border border-slate-100 p-6 rounded-2xl shadow-sm flex flex-col justify-center">
+            <h4 className="text-[14px] font-medium text-on-surface-variant mb-4">Pending by Priority</h4>
+            <div className="flex gap-4">
+              <div className="flex-1 bg-red-50 rounded-xl p-3 text-center border border-red-100/50">
+                <span className="block text-[12px] font-bold text-red-600 uppercase tracking-wider mb-1">High</span>
+                <span className="block text-[24px] font-bold text-red-700">{tasks.filter(t => !t.completed && t.priority === 'High').length}</span>
+              </div>
+              <div className="flex-1 bg-blue-50 rounded-xl p-3 text-center border border-blue-100/50">
+                <span className="block text-[12px] font-bold text-blue-600 uppercase tracking-wider mb-1">Medium</span>
+                <span className="block text-[24px] font-bold text-blue-700">{tasks.filter(t => !t.completed && t.priority === 'Medium').length}</span>
+              </div>
+              <div className="flex-1 bg-slate-50 rounded-xl p-3 text-center border border-slate-100/50">
+                <span className="block text-[12px] font-bold text-slate-500 uppercase tracking-wider mb-1">Low</span>
+                <span className="block text-[24px] font-bold text-slate-700">{tasks.filter(t => !t.completed && t.priority === 'Low').length}</span>
+              </div>
             </div>
           </div>
+          
+          <div className="bg-surface-container-low border border-slate-100 p-6 rounded-2xl shadow-xl flex flex-col justify-center">
+            <h4 className="text-[14px] font-medium text-on-surface-variant">Total Tasks</h4>
+            <p className="text-[40px] font-bold text-on-surface mt-1">{tasks.length}</p>
+            <p className="text-[14px] text-emerald-600 font-bold mt-1">{completedTasks} Completed</p>
+          </div>
         </div>
-        
-        <div className="bg-surface-container-low border border-slate-100 p-6 rounded-2xl shadow-sm flex flex-col justify-center">
-          <h4 className="text-[14px] font-medium text-on-surface-variant">Total Tasks</h4>
-          <p className="text-[40px] font-bold text-on-surface mt-1">{tasks.length}</p>
-          <p className="text-[14px] text-emerald-600 font-bold mt-1">{completedTasks} Completed</p>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

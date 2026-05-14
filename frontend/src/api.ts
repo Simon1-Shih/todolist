@@ -29,6 +29,8 @@ export const api = {
 
   toggleImportant: (id: number) =>
     fetchJson(`/tasks/${id}/toggle-important`, { method: 'PATCH' }).then(r => r.data),
+  restoreTask: (id: number) =>
+    fetchJson(`/tasks/${id}/restore`, { method: 'PATCH' }).then(r => r.data),
 
   deleteTask: (id: number) =>
     fetchJson(`/tasks/${id}`, { method: 'DELETE' }).then(r => r.data),

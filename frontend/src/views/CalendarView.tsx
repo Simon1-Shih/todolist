@@ -137,7 +137,7 @@ export function CalendarView({ tasks, filteredTasks, currentFilter, categories, 
               {week.map((day, dayIdx) => {
                 const dateStr = day.fullDate;
                 // Basic matching for tasks. Exact dateStr match, or check if day is today and task date indicates 'Today'
-                const dayTasks = tasks.filter(t => t.date === dateStr || (day.isToday && t.date.includes('Today')));
+                const dayTasks = tasks.filter(t => !t.isDeleted && (t.date === dateStr || (day.isToday && t.date.includes('Today'))));
 
 
                 return (

@@ -75,9 +75,13 @@ function App() {
   const handleSelectFilter = (filter: string) => {
     setCurrentFilter(filter);
     setCalendarSelectedDate(null);
+    if (filter === 'trash') {
+      setViewMode('list');
+    }
   };
 
   const handleSwitchView = (mode: 'list' | 'calendar') => {
+    if (currentFilter === 'trash') return; // 垃圾桶不支援日曆模式
     setViewMode(mode);
     if (mode === 'calendar') {
       setCalendarSelectedDate(null);
@@ -218,6 +222,20 @@ function App() {
     }
   };
 
+  const handleRestoreTask = async (taskId: number) => {
+    const oldTasks = [...tasks];
+    // Optimistic Update
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, isDeleted: false } : t));
+
+    try {
+      const updated = await api.restoreTask(taskId);
+      setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
+    } catch (err) {
+      console.error('Failed to restore task:', err);
+      setTasks(oldTasks); // Rollback
+    }
+  };
+
   const handleDeleteTask = async (taskId: number) => {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
@@ -338,6 +356,7 @@ function App() {
         <Header
           viewMode={viewMode}
           onSwitchView={handleSwitchView}
+          hideCalendarToggle={currentFilter === 'trash'}
         />
 
         <div className="flex-1 overflow-y-auto w-full">
@@ -357,8 +376,10 @@ function App() {
               onToggleImportant={handleToggleImportant}
               onToggleComplete={handleToggleComplete}
               onDelete={handleDeleteTask}
+              onRestore={handleRestoreTask}
               onEdit={handleEditTask}
               onAddTask={() => handleOpenAddTask()}
+              isTrashView={currentFilter === 'trash'}
             />
           )}
           {!loading && viewMode === 'calendar' && (

@@ -4,9 +4,10 @@ import { Bell, Settings } from 'lucide-react';
 interface HeaderProps {
   viewMode: 'list' | 'calendar';
   onSwitchView: (mode: 'list' | 'calendar') => void;
+  hideCalendarToggle?: boolean;
 }
 
-export function Header({ viewMode, onSwitchView }: HeaderProps) {
+export function Header({ viewMode, onSwitchView, hideCalendarToggle }: HeaderProps) {
   const isListView = viewMode === 'list';
 
   return (
@@ -24,16 +25,18 @@ export function Header({ viewMode, onSwitchView }: HeaderProps) {
           >
             List
           </button>
-          <button
-            onClick={() => onSwitchView('calendar')}
-            className={`h-full flex items-center px-1 border-b-2 font-semibold text-[14px] transition-all ${
-              viewMode === 'calendar'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-slate-500 hover:text-primary'
-            }`}
-          >
-            Calendar
-          </button>
+          {!hideCalendarToggle && (
+            <button
+              onClick={() => onSwitchView('calendar')}
+              className={`h-full flex items-center px-1 border-b-2 font-semibold text-[14px] transition-all ${
+                viewMode === 'calendar'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-slate-500 hover:text-primary'
+              }`}
+            >
+              Calendar
+            </button>
+          )}
         </nav>
       </div>
 

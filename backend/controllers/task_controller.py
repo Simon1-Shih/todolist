@@ -130,6 +130,15 @@ class TaskController:
         return task
 
     @staticmethod
+    def restore(task_id):
+        task = Task.query.get(task_id)
+        if not task:
+            return None
+        task.is_deleted = False
+        db.session.commit()
+        return task
+
+    @staticmethod
     def delete(task_id):
         task = Task.query.get(task_id)
         if not task:

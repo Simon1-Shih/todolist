@@ -102,6 +102,15 @@ def purge_single_task(task_id):
         return jsonify({'success': False, 'error': 'Task not found or not in trash', 'status_code': 404}), 404
 
 
+@api_bp.route('/tasks/<int:task_id>/restore', methods=['PATCH'])
+def restore_task(task_id):
+    """將任務從垃圾桶還原"""
+    task = TaskController.restore(task_id)
+    if not task:
+        return jsonify({'success': False, 'error': 'Task not found', 'status_code': 404}), 404
+    return jsonify({'success': True, 'data': task.to_dict(), 'message': 'Task restored from trash'})
+
+
 # ========== Category APIs ==========
 
 @api_bp.route('/categories', methods=['GET'])
