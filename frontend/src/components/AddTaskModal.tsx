@@ -31,7 +31,7 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
         setDescription(editingTask.description || '');
         setDate(editingTask.date);
         setTime(editingTask.time || '');
-        setEstimatedTime(editingTask.estimatedTime || '');
+        setEstimatedTime(editingTask.estimatedTime ? (parseInt(editingTask.estimatedTime) / 60).toString() : '');
         setSelectedCats(editingTask.categoryIds || []);
         setPriority(editingTask.priority || 'Low');
       } else {
@@ -77,7 +77,7 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
         description: description || undefined,
         date,
         time: time || undefined,
-        estimatedTime: estimatedTime || undefined,
+        estimatedTime: estimatedTime ? (parseFloat(estimatedTime) * 60).toString() : undefined,
         categoryIds: selectedCats,
         priority,
         completed: editingTask ? editingTask.completed : false,
@@ -161,13 +161,14 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label htmlFor="estimated-time" className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Est. Time (Mins)</label>
+              <label htmlFor="estimated-time" className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Est. Time (Hours)</label>
               <div className="relative">
                 <input
                   id="estimated-time"
                   type="number"
-                  min="1"
-                  placeholder="e.g. 30"
+                  min="0"
+                  step="0.5"
+                  placeholder="e.g. 1.5"
                   value={estimatedTime}
                   onChange={(e) => setEstimatedTime(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary transition-all outline-none text-[14px]"

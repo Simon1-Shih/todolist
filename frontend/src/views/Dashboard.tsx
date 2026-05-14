@@ -134,7 +134,7 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
                   {task.estimatedTime && (
                     <span className={`flex items-center gap-1 text-[12px] font-medium ${task.completed ? 'text-slate-400' : 'text-slate-500'}`}>
                       <Clock size={12} />
-                      {task.estimatedTime}m
+                      {parseInt(task.estimatedTime) / 60}h
                     </span>
                   )}
 
