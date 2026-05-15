@@ -37,7 +37,14 @@ const getTomorrowStr = () => {
 
 export function Dashboard({ tasks, categories, title, description, searchQuery = "", onSearchChange, onToggleImportant, onToggleComplete, onDelete, onRestore, onEdit, onAddTask, isTrashView, isCompletedView, startDate, onStartDateChange, endDate, onEndDateChange }: DashboardProps) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  const completedTasks = tasks.filter(t => t.completed).length;
+  
+  const visibleTasks = tasks.filter(t => {
+    if (isCompletedView || isTrashView) return true;
+    if (t.completed && t.date < getTodayStr()) return false;
+    return true;
+  });
+
+  const completedCount = visibleTasks.filter(t => t.completed).length;
 
   const formatTaskDate = (task: Task) => {
     let dateStr = task.date;
@@ -133,7 +140,7 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
       </div>
 
       <div className="space-y-4">
-        {tasks.map(task => {
+        {visibleTasks.map(task => {
           const primaryCategory = task.categoryIds && task.categoryIds.length > 0 ? categories.find(c => c.id === task.categoryIds[0]) : undefined;
           const bgStripColor = primaryCategory ? primaryCategory.color : 'bg-primary';
 
@@ -293,8 +300,8 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
           
           <div className="bg-surface-container-low border border-slate-100 p-6 rounded-2xl shadow-xl flex flex-col justify-center">
             <h4 className="text-[14px] font-medium text-on-surface-variant">Total Tasks</h4>
-            <p className="text-[40px] font-bold text-on-surface mt-1">{tasks.length}</p>
-            <p className="text-[14px] text-emerald-600 font-bold mt-1">{completedTasks} Completed</p>
+            <p className="text-[40px] font-bold text-on-surface mt-1">{visibleTasks.length}</p>
+            <p className="text-[14px] text-emerald-600 font-bold mt-1">{completedCount} Completed</p>
           </div>
         </div>
       )}

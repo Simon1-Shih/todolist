@@ -326,16 +326,9 @@ function App() {
   } else {
     const activeTasks = sortedTasks.filter(t => !t.isDeleted);
     
-    // Default to hiding completed tasks unless in the 'completed' view
-    const visibleActiveTasks = currentFilter === 'completed' 
-      ? activeTasks 
-      : activeTasks.filter(t => !t.completed);
-
-    filteredTasks = visibleActiveTasks;
-
     if (currentFilter === 'today') {
       const targetDate = calendarSelectedDate || getTodayStr();
-      filteredTasks = visibleActiveTasks.filter(t => 
+      filteredTasks = activeTasks.filter(t => 
         t.date === targetDate || 
         t.date === 'Today' || 
         (targetDate === getTodayStr() && t.date < targetDate)
@@ -349,7 +342,7 @@ function App() {
         viewDesc = 'Tasks scheduled for today and pending overdue tasks.';
       }
     } else if (currentFilter === 'important') {
-      filteredTasks = visibleActiveTasks.filter(t => t.important);
+      filteredTasks = activeTasks.filter(t => t.important);
       viewTitle = 'Important Tasks';
       viewDesc = 'Your starred tasks.';
     } else if (currentFilter === 'completed') {
@@ -358,10 +351,15 @@ function App() {
       viewDesc = 'All your completed tasks.';
     } else if (currentFilter.startsWith('category-')) {
       const catId = parseInt(currentFilter.replace('category-', ''), 10);
-      filteredTasks = visibleActiveTasks.filter(t => t.categoryIds.includes(catId));
+      filteredTasks = activeTasks.filter(t => t.categoryIds.includes(catId));
       const cat = categories.find(c => c.id === catId);
       viewTitle = cat ? `${cat.label} Tasks` : 'Category Tasks';
       viewDesc = cat ? `Tasks in the ${cat.label} category.` : '';
+    } else {
+      // 'all' view
+      filteredTasks = activeTasks;
+      viewTitle = 'All Tasks';
+      viewDesc = 'Manage your productivity and focus for today.';
     }
   }
 
