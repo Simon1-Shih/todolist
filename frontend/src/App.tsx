@@ -31,6 +31,11 @@ const getTodayStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+const normalizeDate = (dateStr: string) => {
+  if (dateStr === 'Today' || dateStr.includes('Today')) return getTodayStr();
+  return dateStr;
+};
+
 function App() {
   const [currentFilter, setCurrentFilter] = useState('all');
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
@@ -39,6 +44,8 @@ function App() {
   const [initialDate, setInitialDate] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [calendarSelectedDate, setCalendarSelectedDate] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -282,9 +289,16 @@ function App() {
     let result = tasks.filter(t => {
       // 全局搜尋過濾
       if (searchQuery) {
-        return t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        const matches = t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()));
+        if (!matches) return false;
       }
+
+      // 日期區間過濾
+      const taskDate = normalizeDate(t.date);
+      if (startDate && taskDate < startDate) return false;
+      if (endDate && taskDate > endDate) return false;
+
       return true;
     });
 
@@ -297,7 +311,7 @@ function App() {
       return (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3);
     });
     return result;
-  }, [tasks, searchQuery]);
+  }, [tasks, searchQuery, startDate, endDate]);
 
   const sortedTasks = processedTasks; // 為了保持變數名稱一致
 
@@ -311,11 +325,22 @@ function App() {
     viewDesc = 'Deleted tasks. Empty the trash to permanently remove them.';
   } else {
     const activeTasks = sortedTasks.filter(t => !t.isDeleted);
-    filteredTasks = activeTasks;
+    
+    // Default to hiding completed tasks unless in the 'completed' view
+    const visibleActiveTasks = currentFilter === 'completed' 
+      ? activeTasks 
+      : activeTasks.filter(t => !t.completed);
+
+    filteredTasks = visibleActiveTasks;
 
     if (currentFilter === 'today') {
       const targetDate = calendarSelectedDate || getTodayStr();
-      filteredTasks = activeTasks.filter(t => t.date === targetDate || t.date === 'Today' || (targetDate === getTodayStr() && t.date < targetDate && !t.completed));
+      filteredTasks = visibleActiveTasks.filter(t => 
+        t.date === targetDate || 
+        t.date === 'Today' || 
+        (targetDate === getTodayStr() && t.date < targetDate)
+      );
+      
       if (calendarSelectedDate) {
         viewTitle = `Tasks for ${calendarSelectedDate}`;
         viewDesc = `Tasks scheduled for ${calendarSelectedDate}.`;
@@ -324,7 +349,7 @@ function App() {
         viewDesc = 'Tasks scheduled for today and pending overdue tasks.';
       }
     } else if (currentFilter === 'important') {
-      filteredTasks = activeTasks.filter(t => t.important);
+      filteredTasks = visibleActiveTasks.filter(t => t.important);
       viewTitle = 'Important Tasks';
       viewDesc = 'Your starred tasks.';
     } else if (currentFilter === 'completed') {
@@ -333,7 +358,7 @@ function App() {
       viewDesc = 'All your completed tasks.';
     } else if (currentFilter.startsWith('category-')) {
       const catId = parseInt(currentFilter.replace('category-', ''), 10);
-      filteredTasks = activeTasks.filter(t => t.categoryIds.includes(catId));
+      filteredTasks = visibleActiveTasks.filter(t => t.categoryIds.includes(catId));
       const cat = categories.find(c => c.id === catId);
       viewTitle = cat ? `${cat.label} Tasks` : 'Category Tasks';
       viewDesc = cat ? `Tasks in the ${cat.label} category.` : '';
@@ -373,6 +398,10 @@ function App() {
               description={viewDesc}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              startDate={startDate}
+              onStartDateChange={setStartDate}
+              endDate={endDate}
+              onEndDateChange={setEndDate}
               onToggleImportant={handleToggleImportant}
               onToggleComplete={handleToggleComplete}
               onDelete={handleDeleteTask}
@@ -380,6 +409,7 @@ function App() {
               onEdit={handleEditTask}
               onAddTask={() => handleOpenAddTask()}
               isTrashView={currentFilter === 'trash'}
+              isCompletedView={currentFilter === 'completed'}
             />
           )}
           {!loading && viewMode === 'calendar' && (

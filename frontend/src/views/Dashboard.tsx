@@ -1,5 +1,5 @@
-import React from 'react';
-import { Search, Calendar as CalendarIcon, Edit2, Trash2, CheckCircle2, Star, Clock, Plus, RotateCcw } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, Calendar as CalendarIcon, Edit2, Trash2, CheckCircle2, Star, Clock, Plus, RotateCcw, Filter, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { Task, Category } from '../App';
 
@@ -17,6 +17,11 @@ interface DashboardProps {
   onEdit: (task: Task) => void;
   onAddTask: () => void;
   isTrashView?: boolean;
+  isCompletedView?: boolean;
+  startDate: string;
+  onStartDateChange: (val: string) => void;
+  endDate: string;
+  onEndDateChange: (val: string) => void;
 }
 
 const getTodayStr = () => {
@@ -30,7 +35,8 @@ const getTomorrowStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-export function Dashboard({ tasks, categories, title, description, searchQuery = "", onSearchChange, onToggleImportant, onToggleComplete, onDelete, onRestore, onEdit, onAddTask, isTrashView }: DashboardProps) {
+export function Dashboard({ tasks, categories, title, description, searchQuery = "", onSearchChange, onToggleImportant, onToggleComplete, onDelete, onRestore, onEdit, onAddTask, isTrashView, isCompletedView, startDate, onStartDateChange, endDate, onEndDateChange }: DashboardProps) {
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const completedTasks = tasks.filter(t => t.completed).length;
 
   const formatTaskDate = (task: Task) => {
@@ -56,26 +62,73 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
           <p className="text-[14px] text-on-surface-variant">{description}</p>
         </div>
         
-        <div className="flex items-center justify-between gap-4">
-          <div className="relative w-full max-w-md">
-            <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Search tasks, labels, or dates..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange?.(e.target.value)} 
-              className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-[16px]"
-            />
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 flex items-center gap-2">
+              <div className="relative flex-1 max-w-md">
+                <Search size={20} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search tasks, labels, or dates..."
+                  value={searchQuery}
+                  onChange={(e) => onSearchChange?.(e.target.value)} 
+                  className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all shadow-sm text-[16px]"
+                />
+              </div>
+              <button 
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className={`px-4 py-3 rounded-xl border transition-all flex items-center gap-2 ${isFilterOpen || startDate || endDate ? 'bg-primary text-white border-primary shadow-md' : 'bg-white border-slate-200 text-slate-400 hover:border-primary/50 hover:text-primary'}`}
+                title="Filter by date range"
+              >
+                <Filter size={20} />
+                {(startDate || endDate) && <span className="text-[12px] font-bold underline">Active</span>}
+              </button>
+            </div>
+            {!isTrashView && (
+              <button 
+                onClick={onAddTask}
+                className="bg-primary hover:bg-primary-container text-white px-5 py-3 rounded-xl text-[14px] font-semibold transition-all shadow-sm flex items-center gap-2 shrink-0"
+              >
+                <Plus size={18} />
+                Add Task
+              </button>
+            )}
           </div>
-          {!isTrashView && (
-            <button 
-              onClick={onAddTask}
-              className="bg-primary hover:bg-primary-container text-white px-5 py-3 rounded-xl text-[14px] font-semibold transition-all shadow-sm flex items-center gap-2"
-            >
-              <Plus size={18} />
-              Add Task
-            </button>
-          )}
+
+          <motion.div 
+            initial={false}
+            animate={{ height: isFilterOpen ? 'auto' : 0, opacity: isFilterOpen ? 1 : 0 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-inner flex flex-wrap items-center gap-6">
+              <div className="flex items-center gap-3">
+                <span className="text-[12px] font-bold text-slate-500 uppercase tracking-wider">Start Date</span>
+                <input 
+                  type="date" 
+                  value={startDate}
+                  onChange={(e) => onStartDateChange(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                />
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-[12px] font-bold text-slate-500 uppercase tracking-wider">End Date</span>
+                <input 
+                  type="date" 
+                  value={endDate}
+                  onChange={(e) => onEndDateChange(e.target.value)}
+                  className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-[14px] outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                />
+              </div>
+              {(startDate || endDate) && (
+                <button 
+                  onClick={() => { onStartDateChange(''); onEndDateChange(''); }}
+                  className="ml-auto px-4 py-2 bg-red-50 text-red-600 rounded-lg text-[13px] font-bold hover:bg-red-100 flex items-center gap-2 transition-all border border-red-100"
+                >
+                  <X size={16} /> Reset Dates
+                </button>
+              )}
+            </div>
+          </motion.div>
         </div>
       </div>
 
@@ -218,7 +271,7 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
         })}
       </div>
 
-      {!isTrashView && (
+      {!isTrashView && !isCompletedView && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
           <div className="bg-surface-container-low border border-slate-100 p-6 rounded-2xl shadow-sm flex flex-col justify-center">
             <h4 className="text-[14px] font-medium text-on-surface-variant mb-4">Pending by Priority</h4>
