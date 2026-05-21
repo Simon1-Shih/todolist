@@ -25,7 +25,7 @@ export const api = {
     fetchJson(`/tasks/${id}`, { method: 'PUT', body: JSON.stringify(task) }).then(r => r.data),
 
   toggleComplete: (id: number) =>
-    fetchJson(`/tasks/${id}/toggle-complete`, { method: 'PATCH' }).then(r => r.data),
+    fetchJson(`/tasks/${id}/toggle-complete`, { method: 'PATCH' }),
 
   toggleImportant: (id: number) =>
     fetchJson(`/tasks/${id}/toggle-important`, { method: 'PATCH' }).then(r => r.data),

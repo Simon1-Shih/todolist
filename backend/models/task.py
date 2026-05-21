@@ -14,6 +14,7 @@ class Task(db.Model):
     completed = db.Column(db.Boolean, default=False)
     important = db.Column(db.Boolean, default=False)
     is_deleted = db.Column(db.Boolean, default=False)
+    recurrence = db.Column(db.String(10), nullable=False, default='none')  # none/daily/weekly/monthly
 
     def to_dict(self):
         # categories 由 backref 提供
@@ -29,6 +30,7 @@ class Task(db.Model):
             'completed': self.completed,
             'important': self.important,
             'isDeleted': self.is_deleted,
+            'recurrence': self.recurrence,
         }
 
 

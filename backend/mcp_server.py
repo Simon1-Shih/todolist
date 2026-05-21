@@ -138,6 +138,7 @@ def create_task(
     estimated_time: Optional[int] = None,
     priority: str = "Medium",
     category_ids: Optional[List[int]] = None,
+    recurrence: str = "none",
 ) -> Dict[str, Any]:
     """Create a new task.
 
@@ -149,6 +150,7 @@ def create_task(
         estimated_time: optional minutes
         priority: High | Medium | Low
         category_ids: list of category IDs to assign
+        recurrence: none | daily | weekly | monthly
     """
     data = {
         "title": title,
@@ -158,6 +160,7 @@ def create_task(
         "estimatedTime": estimated_time,
         "priority": priority,
         "categoryIds": category_ids or [],
+        "recurrence": recurrence,
     }
     task = TaskController.create(data)
     return {"success": True, "task": _task_to_dict(task)}
@@ -174,6 +177,7 @@ def update_task(
     estimated_time: Optional[int] = None,
     priority: Optional[str] = None,
     category_ids: Optional[List[int]] = None,
+    recurrence: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Update an existing task. Only provided fields are changed."""
     data: Dict[str, Any] = {}
@@ -191,6 +195,8 @@ def update_task(
         data["priority"] = priority
     if category_ids is not None:
         data["categoryIds"] = category_ids
+    if recurrence is not None:
+        data["recurrence"] = recurrence
 
     if not data:
         return {"success": False, "error": "No fields provided for update"}
@@ -205,10 +211,14 @@ def update_task(
 @_with_app_ctx
 def toggle_task_complete(task_id: int) -> Dict[str, Any]:
     """Toggle the completion status of a task."""
-    task = TaskController.toggle_complete(task_id)
-    if not task:
+    res = TaskController.toggle_complete(task_id)
+    if not res:
         return {"success": False, "error": "Task not found"}
-    return {"success": True, "task": _task_to_dict(task)}
+    task, created_task = res
+    response = {"success": True, "task": _task_to_dict(task)}
+    if created_task:
+        response["created_task"] = _task_to_dict(created_task)
+    return response
 
 
 @mcp.tool(name="toggle_task_important")

@@ -1,179 +1,179 @@
-# Software Design Document (SDD) - FocusFlow
+# 軟體設計文件 (SDD) - FocusFlow
 
-## 1. Introduction
+## 1. 概述
 
-FocusFlow is a modern single-page application (SPA) for efficiently managing tasks, schedules, and categories. The application allows users to sort tasks by time and priority, manage categories natively through simple directory-like interactions, and schedule tasks dynamically via an interactive calendar.
+FocusFlow 是一個現代化的單頁應用程式 (SPA)，用於高效地管理任務、排程和分類。應用程式允許使用者按時間和優先級對任務進行排序，透過模擬簡單目錄互動的原生分類管理，以及透過互動式日曆動態排程任務。
 
-## 2. Architecture Overview
+## 2. 架構概述
 
-FocusFlow is a **full-stack application** with a React frontend and Flask backend communicating via RESTful JSON APIs.
+FocusFlow 是一個**全端應用程式**，前端使用 React，後端使用 Flask，透過 RESTful JSON API 通信。
 
-### Frontend
-**Framework:** React 18.x with TypeScript
-**Build Tool:** Vite
-**Styling:** Tailwind CSS v4 (Utility-first CSS)
-**Icons:** `lucide-react`
-**Animation:** `motion/react` (Framer Motion)
-**State Management:** React Hooks (`useState`, `useMemo`) — local component state lifted to `App.tsx`. Frontend state is synced with backend via API calls.
+### 前端
+**前端框架：** React 18.x 搭配 TypeScript
+**建置工具：** Vite
+**樣式：** Tailwind CSS v4 (Utility-first CSS)
+**圖示：** `lucide-react`
+**動畫：** `motion/react` (Framer Motion)
+**狀態管理：** React Hooks (`useState`, `useMemo`) — 本機元件狀態與狀態提升至 `App.tsx`。前端狀態透過 API 與後端同步。
 
-### Backend
-**Framework:** Flask (Python 3.x)
-**Database:** SQLite via SQLAlchemy ORM
-**CORS:** `flask-cors` for frontend-backend cross-origin communication
-**Architecture:** Flask MVC — Models (data layer), Controllers (business logic), Views (API routes)
+### 後端
+**後端框架：** Flask (Python 3.x)
+**資料庫：** SQLite via SQLAlchemy ORM
+**CORS：** `flask-cors` 用於前後端跨域通信
+**架構：** Flask MVC 模式 — Models（資料層）、Controllers（業務邏輯層）、Views（API 路由層）
 
 ### MCP Server
-**Framework:** `fastmcp`
-**Purpose:** Exposes FocusFlow task/category management as MCP tools for AI agents (e.g., Hermes Agent) to call
-**Startup:** `python backend/mcp_server.py` (or auto-started via Hermes Agent `mcp_servers` config)
-**Available Tools:** `list_tasks`, `get_task`, `create_task`, `update_task`, `toggle_task_complete`, `toggle_task_important`, `delete_task`, `restore_task`, `purge_task`, `purge_all_trash`, `list_categories`, `get_category`, `create_category`, `update_category`, `delete_category`
+**框架：** `fastmcp`
+**用途：** 將 FocusFlow 的 task/category 管理功能以 MCP tools 形式暴露，供 Hermes Agent 等 AI 工具呼叫
+**啟動方式：** `python backend/mcp_server.py`（或透過 Hermes Agent 的 `mcp_servers` 設定自動啟動）
+**可用工具：** `list_tasks`, `get_task`, `create_task`, `update_task`, `toggle_task_complete`, `toggle_task_important`, `delete_task`, `restore_task`, `purge_task`, `purge_all_trash`, `list_categories`, `get_category`, `create_category`, `update_category`, `delete_category`
 
-## 3. Directory Structure
+## 3. 目錄結構
 
 ```
-/mnt/e/focusflow/                # Project root (WSL path)
-├── CLAUDE.md                    # Claude Code development guide
-├── SDD.md / SDD_CN.md           # Software Design Document (EN/CN)
-├── README.md                    # Project readme
-├── settings.local.json          # Local settings
+/mnt/e/focusflow/                # 專案根目錄（WSL 路徑）
+├── CLAUDE.md                    # Claude Code 開發指引
+├── SDD.md / SDD_CN.md           # 軟體設計文件（中英文）
+├── README.md                    # 專案說明
+├── settings.local.json          # 本地設定
 │
-├── backend/                     # Backend source (Flask MVC)
-│   ├── wsgi.py                  # Flask app entry and initialization
-│   ├── config.py                # Config (DB, CORS, etc.)
-│   ├── mcp_server.py            # MCP Server (fastmcp framework)
-│   ├── requirements.txt         # Python dependencies
-│   ├── models/                  # Data models (SQLAlchemy ORM)
-│   │   ├── __init__.py           # Database and model exports
-│   │   ├── task.py              # Task model
-│   │   └── category.py          # Category model
-│   ├── controllers/             # Business logic layer
+├── backend/                     # 後端原始碼 (Flask MVC)
+│   ├── wsgi.py                  # Flask 應用入口與初始化
+│   ├── config.py                # 設定檔 (DB、CORS 等)
+│   ├── mcp_server.py            # MCP Server（fastmcp 框架）
+│   ├── requirements.txt         # Python 依賴
+│   ├── models/                  # 資料模型 (SQLAlchemy ORM)
+│   │   ├── __init__.py           # 資料庫與模型匯出
+│   │   ├── task.py              # Task 模型
+│   │   └── category.py          # Category 模型
+│   ├── controllers/             # 業務邏輯層 (控制器)
 │   │   ├── __init__.py
-│   │   ├── task_controller.py   # Task business logic
-│   │   └── category_controller.py # Category business logic
-│   └── views/                   # API route layer
+│   │   ├── task_controller.py   # 任務業務邏輯
+│   │   └── category_controller.py # 分類業務邏輯
+│   └── views/                   # API 路由層 (視圖)
 │       ├── __init__.py
-│       ├── task_views.py        # Task API routes
-│       └── category_views.py    # Category API routes
+│       ├── task_views.py        # 任務 API 路由
+│       └── category_views.py    # 分類 API 路由
 │
-├── frontend/                    # Frontend source (React SPA)
-│   ├── package.json             # npm dependencies
-│   ├── vite.config.ts           # Vite configuration
-│   ├── index.html               # HTML entry
-│   ├── dist/                    # Production build output
-│   └── src/                     # Source code
-│       ├── main.tsx             # React entry point
-│       ├── App.tsx              # Main coordinator and state orchestrator
-│       ├── index.css            # Global CSS and Tailwind entry
-│       ├── api.ts               # API call wrapper
-│       ├── components/          # Reusable/UI components
-│       │   ├── AddTaskModal.tsx # Modal form for creating/editing tasks
-│       │   ├── Header.tsx       # Top navbar (search, view toggle, profile, bell, settings)
-│       │   └── Sidebar.tsx       # Left sidebar (categories, filters, trash)
-│       └── views/               # Main route/screen views
-│           ├── Dashboard.tsx    # Task list view with search and metrics widgets
-│           └── CalendarView.tsx # Visual calendar rendering task dots/strips
+├── frontend/                    # 前端原始碼 (React SPA)
+│   ├── package.json             # npm 依賴
+│   ├── vite.config.ts           # Vite 設定
+│   ├── index.html               # HTML 入口
+│   ├── dist/                    # 正式版建置輸出
+│   └── src/                     # 原始碼
+│       ├── main.tsx             # React 入口點
+│       ├── App.tsx              # 主要整合器與狀態協調器
+│       ├── index.css            # 全域 CSS 與 Tailwind 入口
+│       ├── api.ts               # API 呼叫封裝
+│       ├── components/          # 可複用/UI 元件
+│       │   ├── AddTaskModal.tsx # 新增或編輯任務的彈窗表單
+│       │   ├── Header.tsx       # 上方導航列（搜尋、視圖切換、個人資料、鈴鐺、設定）
+│       │   └── Sidebar.tsx       # 左側導航（分類管理、篩選、回收桶）
+│       └── views/               # 主要路由/螢幕頁面
+│           ├── Dashboard.tsx    # 任務列表渲染、搜尋與指標小工具
+│           └── CalendarView.tsx # 視覺化日曆渲染任務點/橫條
 │
 └── instance/
-    └── focusflow.db             # SQLite database file
+    └── focusflow.db             # SQLite 資料庫檔案
 ```
 
-## 4. State Management
+## 4. 狀態管理
 
-FocusFlow uses a **dual-layer state architecture**: local frontend state for UI responsiveness, and backend persistent state for data durability.
+FocusFlow 使用**雙層狀態架構**：本地前端狀態用於 UI 響應性，後端持久化狀態用於資料耐久性。
 
-### Frontend State (React)
+### 前端狀態 (React)
 
-Most application core state resides in `App.tsx` to maintain a single source of truth, synced with the backend via API:
-* **`tasks: Task[]`** - Core state array holding all tasks. Tasks support multiple categories via `categoryIds: number[]` and soft deletion via `isDeleted?: boolean`.
-* **`categories: Category[]`** - Core category list mapping user-defined folders.
-* **`currentFilter: string`** - Tracks navigation state between predefined filters (`'all' | 'today' | 'important' | 'completed' | 'trash'`) or dynamic (`'category-{id}'`).
-* **`searchQuery: string`** - Bound to `Dashboard`, supports keyword search and date range filtering via computed `useMemo`.
-* **`viewMode: 'list' | 'calendar'`** - Current view mode.
-* **`calendarSelectedDate: Date | null`** - Selected date on calendar; clicking sets "today" filter and pre-fills the date for new tasks.
+大部分應用核心狀態位於 `App.tsx` 以維持單一真相來源，同時透過 API 與後端同步：
+* **`tasks: Task[]`** - 核心狀態陣列，持有所有任務。任務支援多個分類（透過 `categoryIds: number[]`）與軟刪除（透過 `isDeleted?: boolean` 旗標）。
+* **`categories: Category[]`** - 核心分類列表，對應使用者定義的資料夾（分類）。
+* **`currentFilter: string`** - 追蹤導航狀態，在預先定義的篩選（`'all' | 'today' | 'important' | 'completed' | 'trash'`）或動態（`'category-{id}'`）之間切換。
+* **`searchQuery: string`** - 繫結於 `Dashboard`，支援關鍵字搜尋和日期區間篩選，透過計算的 `useMemo` 區塊過濾 `tasks`。
+* **`viewMode: 'list' | 'calendar'`** - 目前檢視模式。
+* **`calendarSelectedDate: Date | null`** - 日曆中選取的日期，點擊後切換至「今天」篩選並預填充新增任務的日期。
 
-### Backend State (Flask + SQLAlchemy + SQLite)
-* **`Task` model** — mapped to database `tasks` table, stores all task fields and associations.
-* **`Category` model** — mapped to database `categories` table, stores category info and many-to-many associations.
-* **`task_categories`** — many-to-many association table between tasks and categories.
+### 後端狀態 (Flask + SQLAlchemy + SQLite)
+* **`Task` 模型** — 對應資料庫 `tasks` 資料表，包含所有任務欄位與關聯。
+* **`Category` 模型** — 對應資料庫 `categories` 資料表，包含分類資訊與多對多關聯。
+* **`task_categories`** — 任務與分類之間的多對多關聯資料表。
 
-### Sorting Priority Implementation
+### 排序優先級實現
 
-`useMemo` in `App.tsx` (`sortedTasks`) ensures `tasks` are continuously filtered and sorted:
-1. **Date (Ascending):** Groups tasks by the same date.
-2. **Time (Ascending):** Resolves relative order of tasks on the same day (`undefined` treated as `00:00`).
-3. **Priority (Descending):** Falls back to priority order (`High` → `Medium` → `Low`) for same time slot or undefined time.
+`App.tsx` 中的 `useMemo`（`sortedTasks`）確保 `tasks` 持續被正確過濾與排序：
+1. **日期（升冪）：** 將同日期任務分組。
+2. **時間（升冪）：** 解決同日期任務的相對順序（`undefined` 視為 `00:00`）。
+3. **優先級（降冪）：** 在相同時間槽或時間未定義時，回退至優先級順序（`High` → `Medium` → `Low`）。
 
-### Frontend-Backend Data Sync
+### 前端-後端資料同步
 
-The frontend makes API calls to the Flask backend via `fetch()`. Every mutation (create, update, delete) in the frontend triggers a corresponding API call. Backend response (or error) determines whether frontend state is updated or rolled back.
+前端透過 `fetch()` 或 `axios` 向 Flask 後端發送 API 呼叫。每個前端變更（建立、更新、刪除）都會立即觸發對應的 API 呼叫，根據後端回應（成功或錯誤）決定是否更新前端狀態或回滾。
 
-### Frontend Local Cache & Optimistic UI Updates
+### 前端本地快取與樂觀 UI 更新
 
-The frontend optimistically updates local state before sending API requests. On failure, local state is rolled back to maintain responsiveness.
+前端在變更後先樂觀地更新本地狀態，再向後端發送 API 請求。若請求失敗則回滾本地狀態，以提升操作流暢度。
 
-## 5. Component Details
+## 5. 元件詳細說明
 
-### `App.tsx` (Controller)
+### `App.tsx`（控制器）
 
-Defines TypeScript interfaces `Category` and `Task`. Coordinates callbacks (`handleSaveTask`, `handleToggleComplete`, `handleDeleteCategory`, etc.) passed down to functional presentation components. Manages global UI constraints (e.g., `select-none` to globally disable user text selection). Includes visual scrollbar disabling logic in `index.css`. All state mutations trigger corresponding backend API calls.
+定義 `Category` 和 `Task` TypeScript 介面。協調回呼函式（`handleSaveTask`, `handleToggleComplete`, `handleDeleteCategory` 等），傳遞至功能型展示元件。管理全域 UI 約束（例如 `select-none` 全域停用使用者文字選取）。包含 `index.css` 中的視覺捲軸停用邏輯。所有狀態變更都會觸發對應的後端 API 呼叫。
 
-### `Sidebar.tsx` (Navigation & Category Management)
+### `Sidebar.tsx`（導航與分類管理）
 
-Features context menus (`onContextMenu`) for deleting/renaming categories, creating new categories via empty-space right-click, and a Trash folder with "Empty Trash" functionality. Predefined task filters include 'All Tasks', 'Today', 'Important', 'Completed', and 'Trash'. Category operations (`onAddCategory`, `onRenameCategory`, `onDeleteCategory`) are synced to the backend.
+包含上下文選單（`onContextMenu`）用於刪除/重新命名分類、空白處右鍵新增分類，以及含有「清空回收桶」功能的回收桶資料夾。預先定義的任務篩選器包括「所有任務」、「今天」、「重要」、「已完成」和「回收桶」。分類操作（`onAddCategory`, `onRenameCategory`, `onDeleteCategory`）會同步至後端。
 
-### `Header.tsx` (Global Utilities)
+### `Header.tsx`（全域工具）
 
-Contains view toggle buttons (List / Calendar), search bar (supports keyword and date range filtering), bell notification icon, profile avatar, and settings button. The "Add Task" button is located prominently within each view.
+包含視圖切換按鈕（List / Calendar）、搜尋列（支援關鍵字與日期區間篩選）、鈴鐺通知圖示、個人資料頭像與設定按鈕。新增任務按鈕位於各視圖內的明顯位置。
 
-### `Dashboard.tsx` (Task List View)
+### `Dashboard.tsx`（任務列表視圖）
 
-Renders the standard list variant. Task iteration checks completion status, priority, multi-select categories (`categoryIds`), due time (`time`), estimated time (`estimatedTime`), and optional `description`. Dynamically tracks counts:
-* Active categories count
-* Total tasks count
-* Completed tasks count
+渲染標準列表變體。任務迭代檢查勾選狀態、優先級、多選分類（`categoryIds`）、到期時間（`time`）、預估工時（`estimatedTime`），以及可選的 `description`。動態追蹤計算數量：
+* 活躍分類數量
+* 任務總數
+* 已完成任務數量
 
-Includes an inline search bar for task title and date range filtering. Hosts the primary "Add Task" button in the view header. Uses `motion/react` to fluidly expand/collapse task `description` on hover only. Completed tasks are hidden by default in views other than "Completed" and "All Tasks".
+內建搜尋列用於追蹤任務標題與日期區間篩選，在頁面標頭直接承載主要的「新增任務」按鈕，並使用 `motion/react` 來流暢地展開/收合任務 `description`，僅在任務懸停時展開。在非「已完成」與「所有任務」視圖下，已完成的任務預設隱藏。
 
-### `CalendarView.tsx` (Calendar View)
+### `CalendarView.tsx`（日曆視圖）
 
-Uses a generative grid computing local `Date` contexts to draw up to 6 rows. Double-clicking any cell triggers `onAddTask` with the date pre-populated. Hosts the primary "Add Task" button in the calendar header. Calendar data is fetched from the backend API grouped by date.
+使用生成式網格計算本機 `Date` 上下文，繪製最多 6 列。在任何儲存格上雙擊會觸發 `onAddTask`，並預先填充相對時間戳記。在日曆標頭直接承載主要的「新增任務」按鈕。日曆資料從後端 API 按日期分組取得。
 
-## 6. Backend API Design (Flask RESTful)
+## 6. 後端 API 設計 (Flask RESTful)
 
-### Task API (`/api/tasks`)
+### 任務 API (`/api/tasks`)
 
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | `/api/tasks` | Get all tasks (supports query params: `filter`, `sort_by`, `sort_order`, `search`) |
-| GET | `/api/tasks/<id>` | Get a single task by ID |
-| POST | `/api/tasks` | Create a new task |
-| PUT | `/api/tasks/<id>` | Update a task |
-| PATCH | `/api/tasks/<id>/toggle-complete` | Toggle task completion status |
-| PATCH | `/api/tasks/<id>/toggle-important` | Toggle task importance flag |
-| DELETE | `/api/tasks/<id>` | Soft delete task (move to trash) |
-| DELETE | `/api/tasks/purge` | Permanently delete all tasks in trash |
+| 方法 | 路由 | 說明 |
+|------|------|------|
+| GET | `/api/tasks` | 取得所有任務（支援查詢參數：`filter`、`sort_by`、`sort_order`、`search`） |
+| GET | `/api/tasks/<id>` | 取得單一任務 |
+| POST | `/api/tasks` | 建立新任務 |
+| PUT | `/api/tasks/<id>` | 更新任務 |
+| PATCH | `/api/tasks/<id>/toggle-complete` | 切換完成狀態 |
+| PATCH | `/api/tasks/<id>/toggle-important` | 切換重要狀態 |
+| DELETE | `/api/tasks/<id>` | 軟刪除任務（移至回收桶） |
+| DELETE | `/api/tasks/purge` | 永久刪除回收桶中的所有任務 |
 
-### Category API (`/api/categories`)
+### 分類 API (`/api/categories`)
 
-| Method | Route | Description |
-|--------|-------|-------------|
-| GET | `/api/categories` | Get all categories |
-| POST | `/api/categories` | Create a new category |
-| PUT | `/api/categories/<id>` | Update a category (rename/change color) |
-| DELETE | `/api/categories/<id>` | Delete a category |
+| 方法 | 路由 | 說明 |
+|------|------|------|
+| GET | `/api/categories` | 取得所有分類 |
+| POST | `/api/categories` | 建立新分類 |
+| PUT | `/api/categories/<id>` | 更新分類（重新命名/改顏色） |
+| DELETE | `/api/categories/<id>` | 刪除分類 |
 
-### Query Parameters (Task List)
+### 查詢參數（任務列表）
 
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
+| 參數 | 類型 | 預設值 | 說明 |
+|------|------|--------|------|
 | `filter` | string | `all` | `all`, `today`, `important`, `completed`, `trash`, `category-{id}` |
 | `sort_by` | string | `date` | `date`, `time`, `priority` |
 | `sort_order` | string | `asc` | `asc`, `desc` |
-| `search` | string | `""` | Keyword search for task titles |
+| `search` | string | `""` | 關鍵字搜尋任務標題 |
 
-### Response Format
+### 回應格式
 
-All API responses follow a consistent JSON structure (success):
+所有 API 回應遵循一致的 JSON 結構（成功時）：
 
 ```json
 {
@@ -183,7 +183,7 @@ All API responses follow a consistent JSON structure (success):
 }
 ```
 
-Or for single resource:
+或針對單一資源：
 
 ```json
 {
@@ -192,44 +192,44 @@ Or for single resource:
 }
 ```
 
-Error responses:
+錯誤回應：
 
 ```json
 {
   "success": false,
-  "error": "Error description"
+  "error": "錯誤描述"
 }
 ```
 
-## 7. Data Model
+## 7. 資料模型
 
-### Task Model
+### Task 模型
 
 ```python
 class Task(db.Model):
-    id: int           # Primary key, auto-increment
-    title: str        # Task title (required)
-    description: str  # Task description (optional, default: "")
-    date: date        # Due date (YYYY-MM-DD)
-    time: time        # Due time (HH:MM, optional)
-    estimated_time: int | None  # Estimated duration in minutes (optional)
-    priority: str     # Priority level: 'High' | 'Medium' | 'Low' (default: 'Medium')
-    completed: bool   # Whether task is completed (default: False)
-    important: bool   # Whether task is marked important (default: False)
-    is_deleted: bool  # Soft-delete flag (default: False)
-    categories: list[Category]  # Many-to-many relationship
+    id: int           # 主鍵，自動遞增
+    title: str        # 任務標題（必填）
+    description: str  # 任務描述（可選，預設："")
+    date: date        # 到期日期（YYYY-MM-DD）
+    time: time        # 到期時間（HH:MM，可選）
+    estimated_time: int | None  # 預估工時（分鐘，可選）
+    priority: str     # 優先級：'High' | 'Medium' | 'Low'（預設：'Medium'）
+    completed: bool   # 是否完成（預設：False）
+    important: bool   # 是否重要（預設：False）
+    is_deleted: bool   # 軟刪除旗標（預設：False）
+    categories: list[Category]  # 多對多關聯
 ```
 
-### Category Model
+### Category 模型
 
 ```python
 class Category(db.Model):
-    id: int           # Primary key, auto-increment
-    label: str        # Category label name
-    color: str        # CSS color class (e.g., 'bg-red-500')
+    id: int           # 主鍵，自動遞增
+    label: str        # 分類標籤名稱
+    color: str        # CSS 顏色類別（例如：'bg-red-500'）
 ```
 
-### Many-to-Many Association Table
+### 多對多關聯表
 
 ```python
 task_categories = db.Table('task_categories',
@@ -238,85 +238,85 @@ task_categories = db.Table('task_categories',
 )
 ```
 
-## 8. Development Commands
+## 8. 開發指令
 
 ```bash
-# Backend
+# 後端
 cd backend
 pip install -r requirements.txt
-python wsgi.py          # Start Flask dev server (default: 5000)
+python wsgi.py          # 啟動 Flask 開發伺服器（預設：5000）
 
-# or using venv
+# 或使用 venv
 ./.venv/Scripts/python.exe wsgi.py
 
-# Frontend
+# 前端
 cd frontend
-npm run dev            # Start Vite dev server (default: 3000)
-npm run build          # Production build
-npm run preview        # Preview production build
-npm run lint           # TypeScript type-check
+npm run dev            # 啟動 Vite 開發伺服器（預設：3000）
+npm run build          # 生產環境建置
+npm run preview        # 預覽生產環境
+npm run lint           # TypeScript 類型檢查
 ```
 
-## 9. Technology Stack Overview
+## 9. 技術棧總覽
 
-| Layer | Technology |
-|-------|------------|
-| Frontend Framework | React 18.x + TypeScript |
-| Backend Framework | Flask (Python 3.x) |
-| Database | SQLite (SQLAlchemy ORM) |
-| Styling | Tailwind CSS v4 |
-| Animation | Framer Motion (`motion/react`) |
-| Icons | lucide-react |
-| Build Tool | Vite |
-| Frontend Dependencies | npm |
-| Backend Dependencies | pip / requirements.txt |
-| CORS | flask-cors (frontend-backend cross-origin) |
-| MCP Server | fastmcp (Task/Category CRUD tools) |
+| 層級 | 技術 |
+|------|------|
+| 前端框架 | React 18.x + TypeScript |
+| 後端框架 | Flask (Python 3.x) |
+| 資料庫 | SQLite (SQLAlchemy ORM) |
+| 樣式 | Tailwind CSS v4 |
+| 動畫 | Framer Motion (`motion/react`) |
+| 圖示 | lucide-react |
+| 建置工具 | Vite |
+| 前端依賴管理 | npm |
+| 後端依賴管理 | pip / requirements.txt |
+| CORS | flask-cors（前後端分離跨域） |
+| MCP Server | fastmcp（Task/Category CRUD tools） |
 
-## 10. Unimplemented Extensibility Targets (UI vs. Logic)
+## 10. 未實作的擴展目標（UI 元素 vs 邏輯實作）
 
-The following UI features exist in styles/designs but lack full JavaScript backend implementation:
+以下 UI 功能反映在樣式/設計稿中，但缺乏完整的 JavaScript 後端功能支援：
 
-| Feature | Component | Current Status |
-|---------|-----------|---------------|
-| **User Profile** | Header | Static image; no modal auth logic |
-| **Notifications** | Header / Bell icon | Static hover icon; no notification center |
-| **Settings** | Header / Sidebar | Settings/menu unmapped |
-| **Daily Focus Score** | Dashboard metrics | `84 (+12%)` is a placeholder; needs metric derivation logic |
-| **Archive** | Sidebar | "Archive" button exists but Tasks have no `archived: boolean` attribute |
+| 功能 | 元件 | 現況 |
+|------|------|------|
+| **個人資料** | Header | 圖片是靜態的；未實作彈窗驗證邏輯 |
+| **通知中心** | Header / 鈴鐺圖示 | 靜態懸停圖示，無通知中心 |
+| **設定頁面** | Header / 側邊欄 | 設定/選單未綁定 |
+| **每日專注分數** | Dashboard 指標卡片 | `84 (+12%)` 是任意佈局範例，需要指標計算邏輯 |
+| **歸檔功能** | 側邊欄 | 「歸檔」按鈕存在，但 Tasks 內部無 `archived: boolean` 屬性 |
 
-## 11. MCP Server Tool List
+## 11. MCP Server 工具清單
 
-The MCP Server (`backend/mcp_server.py`) exposes the following tools via the `fastmcp` framework:
+MCP Server（`backend/mcp_server.py`）提供以下 tools，透過 `fastmcp` 框架暴露：
 
-### Task Tools
+### 任務工具（Task Tools）
 
-| Tool Name | Description | Key Parameters |
-|-----------|-------------|----------------|
-| `list_tasks` | List tasks with filter, search, and sorting | `filter_type`, `search`, `sort_by`, `sort_order` |
-| `get_task` | Get a single task by ID | `task_id` |
-| `create_task` | Create a new task | `title`, `date`, `description?`, `time?`, `estimated_time?`, `priority?`, `category_ids?` |
-| `update_task` | Update a task (only changed fields applied) | `task_id`, `title?`, `description?`, `date?`, `time?`, `estimated_time?`, `priority?`, `category_ids?` |
-| `toggle_task_complete` | Toggle completion status | `task_id` |
-| `toggle_task_important` | Toggle importance status | `task_id` |
-| `delete_task` | Soft delete (move to trash) | `task_id` |
-| `restore_task` | Restore from trash | `task_id` |
-| `purge_task` | Permanently delete a single task from trash | `task_id` |
-| `purge_all_trash` | Permanently delete all tasks in trash | — |
+| 工具名稱 | 說明 | 主要參數 |
+|---------|------|---------|
+| `list_tasks` | 列出任務（支援篩選、搜尋、排序） | `filter_type`, `search`, `sort_by`, `sort_order` |
+| `get_task` | 取得單一任務 | `task_id` |
+| `create_task` | 建立新任務 | `title`, `date`, `description?`, `time?`, `estimated_time?`, `priority?`, `category_ids?` |
+| `update_task` | 更新任務（僅變更提供的欄位） | `task_id`, `title?`, `description?`, `date?`, `time?`, `estimated_time?`, `priority?`, `category_ids?` |
+| `toggle_task_complete` | 切換完成狀態 | `task_id` |
+| `toggle_task_important` | 切換重要狀態 | `task_id` |
+| `delete_task` | 軟刪除任務（移至回收桶） | `task_id` |
+| `restore_task` | 從回收桶還原任務 | `task_id` |
+| `purge_task` | 永久刪除回收桶中的單一任務 | `task_id` |
+| `purge_all_trash` | 永久刪除回收桶中的所有任務 | — |
 
-### Category Tools
+### 分類工具（Category Tools）
 
-| Tool Name | Description | Key Parameters |
-|-----------|-------------|----------------|
-| `list_categories` | List all categories | — |
-| `get_category` | Get a single category by ID | `category_id` |
-| `create_category` | Create a new category | `label`, `color?` |
-| `update_category` | Update a category | `category_id`, `label?`, `color?` |
-| `delete_category` | Permanently delete a category | `category_id` |
+| 工具名稱 | 說明 | 主要參數 |
+|---------|------|---------|
+| `list_categories` | 列出所有分類 | — |
+| `get_category` | 取得單一分類 | `category_id` |
+| `create_category` | 建立新分類 | `label`, `color?` |
+| `update_category` | 更新分類 | `category_id`, `label?`, `color?` |
+| `delete_category` | 永久刪除分類 | `category_id` |
 
-### Startup
+### 啟動方式
 
-Auto-started via Hermes Agent `mcp_servers` config (requires restart):
+透過 Hermes Agent 的 `mcp_servers` 設定自動啟動（需重啟 Hermes Agent）：
 
 ```yaml
 mcp_servers:
@@ -327,7 +327,7 @@ mcp_servers:
     connect_timeout: 60
 ```
 
-Or manually:
+或手動啟動：
 
 ```bash
 cd /mnt/e/focusflow/backend

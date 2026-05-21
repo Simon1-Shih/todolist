@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Calendar as CalendarIcon, Edit2, Trash2, CheckCircle2, Star, Clock, Plus, RotateCcw, Filter, X } from 'lucide-react';
+import { Search, Calendar as CalendarIcon, Edit2, Trash2, CheckCircle2, Star, Clock, Plus, RotateCcw, Filter, X, Repeat } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { Task, Category } from '../App';
 
@@ -217,6 +217,17 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
                   {task.priority && !task.completed && (
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${task.priority === 'High' ? 'bg-red-50 text-red-600' : task.priority === 'Medium' ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-500'}`}>
                       {task.priority}
+                    </span>
+                  )}
+
+                  {task.recurrence && task.recurrence !== 'none' && (
+                    <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all shadow-sm ${
+                      task.completed 
+                        ? 'bg-slate-100 text-slate-400' 
+                        : 'bg-purple-50 text-purple-600 border border-purple-100/50'
+                    }`} title={`Repeats ${task.recurrence}`}>
+                      <Repeat size={10} className={task.completed ? 'text-slate-400' : 'text-purple-500'} />
+                      {task.recurrence}
                     </span>
                   )}
                 </div>

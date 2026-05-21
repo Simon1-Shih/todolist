@@ -61,10 +61,20 @@ def update_task(task_id):
 @api_bp.route('/tasks/<int:task_id>/toggle-complete', methods=['PATCH'])
 def toggle_complete(task_id):
     """切換完成狀態"""
-    task = TaskController.toggle_complete(task_id)
-    if not task:
+    res = TaskController.toggle_complete(task_id)
+    if not res:
         return jsonify({'success': False, 'error': 'Task not found', 'status_code': 404}), 404
-    return jsonify({'success': True, 'data': task.to_dict(), 'message': 'Completion status toggled'})
+    
+    task, created_task = res
+    response_data = {
+        'success': True,
+        'data': task.to_dict(),
+        'message': 'Completion status toggled'
+    }
+    if created_task:
+        response_data['createdTask'] = created_task.to_dict()
+        
+    return jsonify(response_data)
 
 
 @api_bp.route('/tasks/<int:task_id>/toggle-important', methods=['PATCH'])

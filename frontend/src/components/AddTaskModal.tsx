@@ -19,6 +19,7 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
   const [time, setTime] = useState('');
   const [estimatedTime, setEstimatedTime] = useState('');
   const [priority, setPriority] = useState('Low');
+  const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
 
@@ -34,6 +35,7 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
         setEstimatedTime(editingTask.estimatedTime ? (parseInt(editingTask.estimatedTime) / 60).toString() : '');
         setSelectedCats(editingTask.categoryIds || []);
         setPriority(editingTask.priority || 'Low');
+        setRecurrence(editingTask.recurrence || 'none');
       } else {
         setTitle('');
         setDescription('');
@@ -42,6 +44,7 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
         setEstimatedTime('');
         setSelectedCats([]);
         setPriority('Low');
+        setRecurrence('none');
       }
     }
   }, [isOpen, editingTask, initialDate]);
@@ -82,6 +85,7 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
         priority,
         completed: editingTask ? editingTask.completed : false,
         important: editingTask ? editingTask.important : false,
+        recurrence,
       });
     }
     onClose();
@@ -185,6 +189,16 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
                 <option value="High">High</option>
               </select>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="recurrence" className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Repeat</label>
+            <select id="recurrence" value={recurrence} onChange={(e) => setRecurrence(e.target.value as any)} className="w-full px-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary transition-all outline-none text-[14px]">
+              <option value="none">None</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
           </div>
 
           <div className="space-y-2">

@@ -24,7 +24,7 @@ class TaskController:
 
         if filter_type == 'today':
             today = date.today().isoformat()
-            tasks = tasks.filter(Task.date == today)
+            tasks = tasks.filter((Task.date == today) | ((Task.date < today) & (Task.completed == False)))
         elif filter_type == 'important':
             tasks = tasks.filter(Task.important == True)
         elif filter_type == 'completed':
@@ -79,7 +79,8 @@ class TaskController:
             priority=data.get('priority', 'Medium'),
             completed=False,
             important=False,
-            is_deleted=False
+            is_deleted=False,
+            recurrence=data.get('recurrence', 'none')
         )
         db.session.add(task)
         db.session.flush()
@@ -105,6 +106,7 @@ class TaskController:
             task.estimated_time = int(data['estimatedTime'])
             
         task.priority = data.get('priority', task.priority)
+        task.recurrence = data.get('recurrence', task.recurrence)
         
         category_ids = data.get('categoryIds', [])
         if isinstance(category_ids, list):
@@ -114,12 +116,86 @@ class TaskController:
         return task
 
     @staticmethod
+    def _calculate_next_recurrence_date(current_date_str, recurrence):
+        import datetime
+        import calendar
+        
+        today = datetime.date.today()
+        try:
+            curr_date = datetime.datetime.strptime(current_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            curr_date = today
+            
+        next_date = curr_date
+        
+        def add_one_month(sourcedate):
+            month = sourcedate.month - 1 + 1
+            year = sourcedate.year + month // 12
+            month = month % 12 + 1
+            day = min(sourcedate.day, calendar.monthrange(year, month)[1])
+            return datetime.date(year, month, day)
+
+        while True:
+            if recurrence == 'daily':
+                next_date += datetime.timedelta(days=1)
+            elif recurrence == 'weekly':
+                next_date += datetime.timedelta(days=7)
+            elif recurrence == 'monthly':
+                next_date = add_one_month(next_date)
+            else:
+                break
+            
+            if next_date > today:
+                break
+                
+        return next_date.isoformat()
+
+    @staticmethod
     def toggle_complete(task_id):
         task = Task.query.get(task_id)
-        if not task: return None
+        if not task:
+            return None
+            
+        was_completed = task.completed
         task.completed = not task.completed
+        
+        created_task = None
+        
+        # 僅在任務完成 (completed 從 False 變為 True)，且 recurrence 不是 'none' 時觸發生成新任務
+        if not was_completed and task.completed and task.recurrence != 'none':
+            next_date = TaskController._calculate_next_recurrence_date(task.date, task.recurrence)
+            
+            # 等冪性檢查：避免對同一個重複週期產生多個未完成任務
+            exists = Task.query.filter(
+                Task.title == task.title,
+                Task.date == next_date,
+                Task.recurrence == task.recurrence,
+                Task.completed == False,
+                Task.is_deleted == False
+            ).first()
+            
+            if not exists:
+                created_task = Task(
+                    title=task.title,
+                    description=task.description,
+                    date=next_date,
+                    time=task.time,
+                    estimated_time=task.estimated_time,
+                    priority=task.priority,
+                    recurrence=task.recurrence,
+                    completed=False,
+                    important=task.important,
+                    is_deleted=False
+                )
+                db.session.add(created_task)
+                db.session.flush()
+                
+                # 複製分類關聯
+                categories = task.categories.all()
+                created_task.categories.extend(categories)
+        
         db.session.commit()
-        return task
+        return task, created_task
 
     @staticmethod
     def toggle_important(task_id):

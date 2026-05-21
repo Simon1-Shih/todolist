@@ -24,6 +24,7 @@ export interface Task {
   completed: boolean;
   important: boolean;
   isDeleted?: boolean;
+  recurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
 }
 
 const getTodayStr = () => {
@@ -50,6 +51,19 @@ function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 午夜跨日自動刷新機制
+  const initialTodayRef = React.useRef(getTodayStr());
+  useEffect(() => {
+    const checkMidnight = setInterval(() => {
+      const currentToday = getTodayStr();
+      if (currentToday !== initialTodayRef.current) {
+        window.location.reload();
+      }
+    }, 60000); // 每分鐘檢查一次
+    
+    return () => clearInterval(checkMidnight);
+  }, []);
 
   // 初始加載：一次性拉取所有任務 (含垃圾桶) 與分類
   useEffect(() => {
@@ -110,7 +124,7 @@ function App() {
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...task } : t));
     } else {
       // 暫時產生一個臨時 ID
-      const tempTask = { ...task, id: Date.now(), completed: false, important: false, isDeleted: false };
+      const tempTask = { ...task, id: Date.now(), completed: false, important: false, isDeleted: false, recurrence: task.recurrence || 'none' };
       setTasks(prev => [...prev, tempTask]);
     }
 
@@ -124,6 +138,7 @@ function App() {
           estimatedTime: task.estimatedTime || '',
           categoryIds: task.categoryIds,
           priority: task.priority,
+          recurrence: task.recurrence || 'none',
         });
         setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
       } else {
@@ -135,6 +150,7 @@ function App() {
           estimatedTime: task.estimatedTime || '',
           categoryIds: task.categoryIds,
           priority: task.priority,
+          recurrence: task.recurrence || 'none',
         });
         // 用後端回傳的真實數據替換暫時數據
         setTasks(prev => prev.map(t => t.title === created.title && t.date === created.date ? created : t));
@@ -221,8 +237,19 @@ function App() {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, completed: !t.completed } : t));
 
     try {
-      const updated = await api.toggleComplete(taskId);
-      setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
+      const res = await api.toggleComplete(taskId);
+      const updated = res.data;
+      const created = res.createdTask;
+      
+      setTasks(prev => {
+        let newTasks = prev.map(t => t.id === taskId ? updated : t);
+        if (created) {
+          if (!newTasks.some(t => t.id === created.id)) {
+            newTasks = [...newTasks, created];
+          }
+        }
+        return newTasks;
+      });
     } catch (err) {
       console.error('Failed to toggle complete:', err);
       setTasks(oldTasks); // Rollback
