@@ -1,4 +1,7 @@
-const API_BASE = 'http://localhost:5000/api';
+const viteEnv = (import.meta as any).env;
+const API_BASE = (
+  viteEnv?.VITE_API_BASE_URL ?? (viteEnv?.DEV ? 'http://localhost:5000/api' : '/api')
+).replace(/\/$/, '');
 
 async function fetchJson(url: string, options?: RequestInit) {
   const res = await fetch(`${API_BASE}${url}`, {
