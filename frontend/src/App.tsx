@@ -61,7 +61,7 @@ function App() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // ?ˆå?è·¨æ—¥?ªå??·æ–°æ©Ÿåˆ¶
+  // ?ï¿½ï¿½?è·¨æ—¥?ï¿½ï¿½??ï¿½æ–°æ©Ÿåˆ¶
   const initialTodayRef = React.useRef(getTodayStr());
   useEffect(() => {
     const checkMidnight = setInterval(() => {
@@ -69,7 +69,7 @@ function App() {
       if (currentToday !== initialTodayRef.current) {
         window.location.reload();
       }
-    }, 60000); // æ¯å??˜æª¢?¥ä?æ¬?    
+    }, 60000); // æ¯ï¿½??ï¿½æª¢?ï¿½ï¿½?ï¿½?    
     return () => clearInterval(checkMidnight);
   }, []);
 
@@ -109,8 +109,8 @@ function App() {
     })();
   }, [authUser]);
 
-  // ç§»é™¤?Ÿæœ¬æ¯ç•¶ filter/search è®Šå?å°±é???fetch ??useEffect
-  // ?€?‰ç¯©?¸æ”¹?¨å?ç«?useMemo ?²è?
+  // ç§»é™¤?ï¿½æœ¬æ¯ç•¶ filter/search è®Šï¿½?å°±ï¿½???fetch ??useEffect
+  // ?ï¿½?ï¿½ç¯©?ï¿½æ”¹?ï¿½ï¿½?ï¿½?useMemo ?ï¿½ï¿½?
 
   const handleOpenAddTask = (date?: string) => {
     setEditingTask(null);
@@ -127,10 +127,24 @@ function App() {
   };
 
   const handleSwitchView = (mode: 'list' | 'calendar') => {
-    if (currentFilter === 'trash') return; // ?ƒåœ¾æ¡¶ä??¯æ´?¥æ?æ¨¡å?
+    if (currentFilter === 'trash') return; // ?ï¿½åœ¾æ¡¶ï¿½??ï¿½æ´?ï¿½ï¿½?æ¨¡ï¿½?
     setViewMode(mode);
     if (mode === 'calendar') {
       setCalendarSelectedDate(null);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api.logout();
+    } catch (err) {
+      console.error('Failed to logout:', err);
+    } finally {
+      setAuthUser(null);
+      setTasks([]);
+      setCategories([]);
+      setCurrentFilter('all');
+      setViewMode('list');
     }
   };
 
@@ -148,7 +162,7 @@ function App() {
     if (isEditing) {
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...task } : t));
     } else {
-      // ?«æ??¢ç?ä¸€?‹è‡¨??ID
+      // ?ï¿½ï¿½??ï¿½ï¿½?ä¸€?ï¿½è‡¨??ID
       const tempTask = { ...task, id: Date.now(), completed: false, important: false, isDeleted: false, recurrence: task.recurrence || 'none' };
       setTasks(prev => [...prev, tempTask]);
     }
@@ -177,7 +191,7 @@ function App() {
           priority: task.priority,
           recurrence: task.recurrence || 'none',
         });
-        // ?¨å?ç«¯å??³ç??Ÿå¯¦?¸æ??¿æ??«æ??¸æ?
+        // ?ï¿½ï¿½?ç«¯ï¿½??ï¿½ï¿½??ï¿½å¯¦?ï¿½ï¿½??ï¿½ï¿½??ï¿½ï¿½??ï¿½ï¿½?
         setTasks(prev => prev.map(t => t.title === created.title && t.date === created.date ? created : t));
       }
     } catch (err) {
@@ -338,7 +352,7 @@ function App() {
 
   const processedTasks = useMemo(() => {
     let result = tasks.filter(t => {
-      // ?¨å??œå??Žæ¿¾
+      // ?ï¿½ï¿½??ï¿½ï¿½??ï¿½æ¿¾
       if (searchQuery) {
         const matches = t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -363,7 +377,7 @@ function App() {
     return result;
   }, [tasks, searchQuery, startDate, endDate]);
 
-  const sortedTasks = processedTasks; // ?ºä?ä¿æ?è®Šæ•¸?ç¨±ä¸€??
+  const sortedTasks = processedTasks; // ?ï¿½ï¿½?ä¿ï¿½?è®Šæ•¸?ï¿½ç¨±ä¸€??
   let filteredTasks = sortedTasks;
   let viewTitle = 'All Tasks';
   let viewDesc = 'Manage your productivity and focus for today.';
@@ -441,6 +455,8 @@ function App() {
           viewMode={viewMode}
           onSwitchView={handleSwitchView}
           hideCalendarToggle={currentFilter === 'trash'}
+          user={authUser}
+          onLogout={handleLogout}
         />
 
         <div className="flex-1 overflow-y-auto w-full">
