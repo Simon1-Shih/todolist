@@ -41,10 +41,12 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
     }
+    BOOTSTRAP_DB_ON_STARTUP = False
 
 
 class DevelopmentConfig(Config):
     DEBUG = True
+    BOOTSTRAP_DB_ON_STARTUP = True
 
 
 class ProductionConfig(Config):

@@ -26,9 +26,10 @@ def create_app(config_name='default'):
     db.init_app(app)
     app.register_blueprint(api_bp, url_prefix='/api')
 
-    with app.app_context():
-        db.create_all()
-    run_startup_migrations(app)
+    if app.config.get('BOOTSTRAP_DB_ON_STARTUP'):
+        with app.app_context():
+            db.create_all()
+        run_startup_migrations(app)
 
     return app
 
