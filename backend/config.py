@@ -1,8 +1,13 @@
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 INSTANCE_DIR = BASE_DIR / 'backend' / 'instance'
+
+load_dotenv(BASE_DIR / '.env.development.local')
+load_dotenv(BASE_DIR / '.env.local')
 
 
 def get_database_uri():
