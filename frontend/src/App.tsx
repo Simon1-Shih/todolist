@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { Dashboard } from './views/Dashboard';
 import { AddTaskModal } from './components/AddTaskModal';
 import { CalendarView } from './views/CalendarView';
+import { LoginPage } from './components/LoginPage';
 import { api } from './api';
 
 export interface Category {
@@ -25,6 +26,12 @@ export interface Task {
   important: boolean;
   isDeleted?: boolean;
   recurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
+}
+
+interface AuthUser {
+  email: string;
+  name?: string;
+  picture?: string;
 }
 
 const getTodayStr = () => {
@@ -51,8 +58,10 @@ function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // 午夜跨日自動刷新機制
+  // ?��?跨日?��??�新機制
   const initialTodayRef = React.useRef(getTodayStr());
   useEffect(() => {
     const checkMidnight = setInterval(() => {
@@ -60,13 +69,29 @@ function App() {
       if (currentToday !== initialTodayRef.current) {
         window.location.reload();
       }
-    }, 60000); // 每分鐘檢查一次
-    
+    }, 60000); // 每�??�檢?��?�?    
     return () => clearInterval(checkMidnight);
   }, []);
 
-  // 初始加載：一次性拉取所有任務 (含垃圾桶) 與分類
   useEffect(() => {
+    (async () => {
+      try {
+        const user = await api.getCurrentUser();
+        setAuthUser(user);
+      } catch (err) {
+        setAuthUser(null);
+      } finally {
+        setCheckingAuth(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!authUser) {
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         setLoading(true);
@@ -82,10 +107,10 @@ function App() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [authUser]);
 
-  // 移除原本每當 filter/search 變化就重新 fetch 的 useEffect
-  // 所有篩選改在前端 useMemo 進行
+  // 移除?�本每當 filter/search 變�?就�???fetch ??useEffect
+  // ?�?�篩?�改?��?�?useMemo ?��?
 
   const handleOpenAddTask = (date?: string) => {
     setEditingTask(null);
@@ -102,7 +127,7 @@ function App() {
   };
 
   const handleSwitchView = (mode: 'list' | 'calendar') => {
-    if (currentFilter === 'trash') return; // 垃圾桶不支援日曆模式
+    if (currentFilter === 'trash') return; // ?�圾桶�??�援?��?模�?
     setViewMode(mode);
     if (mode === 'calendar') {
       setCalendarSelectedDate(null);
@@ -123,7 +148,7 @@ function App() {
     if (isEditing) {
       setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...task } : t));
     } else {
-      // 暫時產生一個臨時 ID
+      // ?��??��?一?�臨??ID
       const tempTask = { ...task, id: Date.now(), completed: false, important: false, isDeleted: false, recurrence: task.recurrence || 'none' };
       setTasks(prev => [...prev, tempTask]);
     }
@@ -152,7 +177,7 @@ function App() {
           priority: task.priority,
           recurrence: task.recurrence || 'none',
         });
-        // 用後端回傳的真實數據替換暫時數據
+        // ?��?端�??��??�實?��??��??��??��?
         setTasks(prev => prev.map(t => t.title === created.title && t.date === created.date ? created : t));
       }
     } catch (err) {
@@ -311,17 +336,15 @@ function App() {
     }
   };
 
-  // 排序與搜尋（前端進行）
   const processedTasks = useMemo(() => {
     let result = tasks.filter(t => {
-      // 全局搜尋過濾
+      // ?��??��??�濾
       if (searchQuery) {
         const matches = t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                (t.description && t.description.toLowerCase().includes(searchQuery.toLowerCase()));
         if (!matches) return false;
       }
 
-      // 日期區間過濾
       const taskDate = normalizeDate(t.date);
       if (startDate && taskDate < startDate) return false;
       if (endDate && taskDate > endDate) return false;
@@ -340,8 +363,7 @@ function App() {
     return result;
   }, [tasks, searchQuery, startDate, endDate]);
 
-  const sortedTasks = processedTasks; // 為了保持變數名稱一致
-
+  const sortedTasks = processedTasks; // ?��?保�?變數?�稱一??
   let filteredTasks = sortedTasks;
   let viewTitle = 'All Tasks';
   let viewDesc = 'Manage your productivity and focus for today.';
@@ -388,6 +410,18 @@ function App() {
       viewTitle = 'All Tasks';
       viewDesc = 'Manage your productivity and focus for today.';
     }
+  }
+
+  if (checkingAuth) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background text-sm text-on-surface-variant">
+        Loading...
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    return <LoginPage />;
   }
 
   return (

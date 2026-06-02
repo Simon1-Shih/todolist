@@ -6,6 +6,7 @@ const API_BASE = (
 async function fetchJson(url: string, options?: RequestInit) {
   const res = await fetch(`${API_BASE}${url}`, {
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     ...options,
   });
   const data = await res.json();
@@ -14,6 +15,14 @@ async function fetchJson(url: string, options?: RequestInit) {
 }
 
 export const api = {
+  getCurrentUser: () =>
+    fetchJson(`/auth/me`).then(r => r.data),
+
+  googleLoginUrl: () => `${API_BASE}/auth/google`,
+
+  logout: () =>
+    fetchJson(`/auth/logout`, { method: 'POST' }),
+
   // Tasks
   getTasks: (params?: Record<string, string>) =>
     fetchJson(`/tasks?${new URLSearchParams(params || {}).toString()}`).then(r => r.data),

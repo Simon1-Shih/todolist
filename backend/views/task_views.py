@@ -1,8 +1,55 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, jsonify, redirect, request, session
+from backend.auth import oauth
 from backend.controllers.task_controller import TaskController
 from backend.controllers.category_controller import CategoryController
 
 api_bp = Blueprint('api', __name__)
+
+
+@api_bp.before_request
+def require_auth():
+    if request.method == 'OPTIONS':
+        return None
+    if request.endpoint and request.endpoint.startswith('api.auth_'):
+        return None
+    if 'user' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+    return None
+
+
+def get_app_base_url():
+    return (current_app.config.get('APP_BASE_URL') or request.host_url.rstrip('/')).rstrip('/')
+
+
+@api_bp.route('/auth/me', methods=['GET'])
+def auth_me():
+    return jsonify({'success': True, 'data': session.get('user')})
+
+
+@api_bp.route('/auth/google', methods=['GET'])
+def auth_google():
+    if not current_app.config.get('GOOGLE_CLIENT_ID') or not current_app.config.get('GOOGLE_CLIENT_SECRET'):
+        return jsonify({'success': False, 'error': 'Google OAuth is not configured'}), 500
+    redirect_uri = f"{get_app_base_url()}/api/auth/google/callback"
+    return oauth.google.authorize_redirect(redirect_uri)
+
+
+@api_bp.route('/auth/google/callback', methods=['GET'])
+def auth_google_callback():
+    token = oauth.google.authorize_access_token()
+    user_info = token.get('userinfo') or oauth.google.userinfo()
+    session['user'] = {
+        'email': user_info.get('email'),
+        'name': user_info.get('name'),
+        'picture': user_info.get('picture'),
+    }
+    return redirect('/')
+
+
+@api_bp.route('/auth/logout', methods=['POST'])
+def auth_logout():
+    session.clear()
+    return jsonify({'success': True})
 
 # ========== Task APIs ==========
 
