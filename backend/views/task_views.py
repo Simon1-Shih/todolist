@@ -62,6 +62,22 @@ def auth_me():
     return jsonify({'success': True, 'data': session.get('user')})
 
 
+@api_bp.route('/bootstrap', methods=['GET'])
+def bootstrap():
+    user_id = current_user_id()
+    tasks = TaskController.get_all(user_id=user_id, filter_type='full')
+    categories = CategoryController.get_all(user_id)
+    return jsonify({
+        'success': True,
+        'data': {
+            'user': session.get('user'),
+            'tasks': tasks,
+            'categories': [category.to_dict() for category in categories],
+        },
+        'message': 'Bootstrap data retrieved successfully',
+    })
+
+
 @api_bp.route('/auth/google', methods=['GET'])
 def auth_google():
     if not current_app.config.get('GOOGLE_CLIENT_ID') or not current_app.config.get('GOOGLE_CLIENT_SECRET'):

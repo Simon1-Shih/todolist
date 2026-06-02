@@ -76,38 +76,18 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        const user = await api.getCurrentUser();
-        setAuthUser(user);
+        const bootstrapData = await api.bootstrap();
+        setAuthUser(bootstrapData.user);
+        setTasks(bootstrapData.tasks || []);
+        setCategories(bootstrapData.categories || []);
       } catch (err) {
         setAuthUser(null);
       } finally {
+        setLoading(false);
         setCheckingAuth(false);
       }
     })();
   }, []);
-
-  useEffect(() => {
-    if (!authUser) {
-      setLoading(false);
-      return;
-    }
-
-    (async () => {
-      try {
-        setLoading(true);
-        const [taskData, catData] = await Promise.all([
-          api.getTasks({ filter: 'full' }),
-          api.getCategories(),
-        ]);
-        setTasks(taskData || []);
-        setCategories(catData || []);
-      } catch (err) {
-        console.error('Failed to load data:', err);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [authUser]);
 
   // 移除?�本每當 filter/search 變�?就�???fetch ??useEffect
   // ?�?�篩?�改?��?�?useMemo ?��?

@@ -15,6 +15,9 @@ async function fetchJson(url: string, options?: RequestInit) {
 }
 
 export const api = {
+  bootstrap: () =>
+    fetchJson(`/bootstrap`).then(r => r.data),
+
   getCurrentUser: () =>
     fetchJson(`/auth/me`).then(r => r.data),
 
