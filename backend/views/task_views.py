@@ -21,6 +21,10 @@ def get_app_base_url():
     return (current_app.config.get('APP_BASE_URL') or request.host_url.rstrip('/')).rstrip('/')
 
 
+def get_frontend_base_url():
+    return (current_app.config.get('FRONTEND_BASE_URL') or get_app_base_url()).rstrip('/')
+
+
 @api_bp.route('/auth/me', methods=['GET'])
 def auth_me():
     return jsonify({'success': True, 'data': session.get('user')})
@@ -43,7 +47,7 @@ def auth_google_callback():
         'name': user_info.get('name'),
         'picture': user_info.get('picture'),
     }
-    return redirect('/')
+    return redirect(get_frontend_base_url())
 
 
 @api_bp.route('/auth/logout', methods=['POST'])

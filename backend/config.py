@@ -32,6 +32,7 @@ class Config:
     GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
     GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
     APP_BASE_URL = os.environ.get('APP_BASE_URL')
+    FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL')
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     SESSION_COOKIE_SECURE = os.environ.get('FLASK_CONFIG') == 'production'
