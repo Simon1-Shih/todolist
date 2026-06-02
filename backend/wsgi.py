@@ -8,6 +8,7 @@ from flask_cors import CORS
 
 from backend.auth import init_auth
 from backend.config import config
+from backend.migrations import run_startup_migrations
 from backend.models import db
 from backend.views import api_bp
 
@@ -27,6 +28,7 @@ def create_app(config_name='default'):
 
     with app.app_context():
         db.create_all()
+    run_startup_migrations(app)
 
     return app
 

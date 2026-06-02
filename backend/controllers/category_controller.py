@@ -4,16 +4,17 @@ from backend.models.category import Category
 
 class CategoryController:
     @staticmethod
-    def get_all():
-        return Category.query.all()
+    def get_all(user_id):
+        return Category.query.filter(Category.user_id == user_id).all()
 
     @staticmethod
-    def get_by_id(category_id):
-        return Category.query.get(category_id)
+    def get_by_id(user_id, category_id):
+        return Category.query.filter(Category.id == category_id, Category.user_id == user_id).first()
 
     @staticmethod
-    def create(data):
+    def create(user_id, data):
         category = Category(
+            user_id=user_id,
             label=data['label'],
             color=data.get('color', 'bg-blue-500')
         )
@@ -22,8 +23,8 @@ class CategoryController:
         return category
 
     @staticmethod
-    def update(category_id, data):
-        category = Category.query.get(category_id)
+    def update(user_id, category_id, data):
+        category = CategoryController.get_by_id(user_id, category_id)
         if not category:
             return None
         category.label = data.get('label', category.label)
@@ -32,8 +33,8 @@ class CategoryController:
         return category
 
     @staticmethod
-    def delete(category_id):
-        category = Category.query.get(category_id)
+    def delete(user_id, category_id):
+        category = CategoryController.get_by_id(user_id, category_id)
         if not category:
             return None
         db.session.delete(category)

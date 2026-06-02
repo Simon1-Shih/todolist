@@ -11,8 +11,8 @@ class TaskController:
         return [cat.id for cat in task.categories.all()]
 
     @staticmethod
-    def get_all(filter_type='all', search='', sort_by='date', sort_order='asc'):
-        tasks = Task.query
+    def get_all(user_id, filter_type='all', search='', sort_by='date', sort_order='asc'):
+        tasks = Task.query.filter(Task.user_id == user_id)
 
         if filter_type == 'trash':
             tasks = tasks.filter(Task.is_deleted == True)
@@ -33,7 +33,7 @@ class TaskController:
             cat_id = filter_type.replace('category-', '')
             try:
                 cat_id_int = int(cat_id)
-                tasks = tasks.filter(Task.categories.any(Category.id == cat_id_int))
+                tasks = tasks.filter(Task.categories.any((Category.id == cat_id_int) & (Category.user_id == user_id)))
             except ValueError:
                 pass
 
@@ -60,8 +60,8 @@ class TaskController:
         return result
 
     @staticmethod
-    def get_by_id(task_id):
-        task = Task.query.get(task_id)
+    def get_by_id(user_id, task_id):
+        task = Task.query.filter(Task.id == task_id, Task.user_id == user_id).first()
         if not task:
             return None
         d = task.to_dict()
@@ -69,8 +69,9 @@ class TaskController:
         return d
 
     @staticmethod
-    def create(data):
+    def create(user_id, data):
         task = Task(
+            user_id=user_id,
             title=data['title'],
             description=data.get('description', ''),
             date=data['date'],
@@ -86,14 +87,14 @@ class TaskController:
         db.session.flush()
         category_ids = data.get('categoryIds', [])
         if isinstance(category_ids, list) and category_ids:
-            categories = Category.query.filter(Category.id.in_(category_ids)).all()
+            categories = Category.query.filter(Category.id.in_(category_ids), Category.user_id == user_id).all()
             task.categories.extend(categories)
         db.session.commit()
         return task
 
     @staticmethod
-    def update(task_id, data):
-        task = Task.query.get(task_id)
+    def update(user_id, task_id, data):
+        task = Task.query.filter(Task.id == task_id, Task.user_id == user_id).first()
         if not task:
             return None
             
@@ -110,7 +111,7 @@ class TaskController:
         
         category_ids = data.get('categoryIds', [])
         if isinstance(category_ids, list):
-            task.categories = Category.query.filter(Category.id.in_(category_ids)).all()
+            task.categories = Category.query.filter(Category.id.in_(category_ids), Category.user_id == user_id).all()
             
         db.session.commit()
         return task
@@ -151,8 +152,8 @@ class TaskController:
         return next_date.isoformat()
 
     @staticmethod
-    def toggle_complete(task_id):
-        task = Task.query.get(task_id)
+    def toggle_complete(user_id, task_id):
+        task = Task.query.filter(Task.id == task_id, Task.user_id == user_id).first()
         if not task:
             return None
             
@@ -168,6 +169,7 @@ class TaskController:
             # 等冪性檢查：避免對同一個重複週期產生多個未完成任務
             exists = Task.query.filter(
                 Task.title == task.title,
+                Task.user_id == user_id,
                 Task.date == next_date,
                 Task.recurrence == task.recurrence,
                 Task.completed == False,
@@ -177,6 +179,7 @@ class TaskController:
             if not exists:
                 created_task = Task(
                     title=task.title,
+                    user_id=user_id,
                     description=task.description,
                     date=next_date,
                     time=task.time,
@@ -198,16 +201,16 @@ class TaskController:
         return task, created_task
 
     @staticmethod
-    def toggle_important(task_id):
-        task = Task.query.get(task_id)
+    def toggle_important(user_id, task_id):
+        task = Task.query.filter(Task.id == task_id, Task.user_id == user_id).first()
         if not task: return None
         task.important = not task.important
         db.session.commit()
         return task
 
     @staticmethod
-    def restore(task_id):
-        task = Task.query.get(task_id)
+    def restore(user_id, task_id):
+        task = Task.query.filter(Task.id == task_id, Task.user_id == user_id).first()
         if not task:
             return None
         task.is_deleted = False
@@ -215,8 +218,8 @@ class TaskController:
         return task
 
     @staticmethod
-    def delete(task_id):
-        task = Task.query.get(task_id)
+    def delete(user_id, task_id):
+        task = Task.query.filter(Task.id == task_id, Task.user_id == user_id).first()
         if not task:
             return None
         task.is_deleted = True
@@ -224,8 +227,8 @@ class TaskController:
         return task
 
     @staticmethod
-    def purge_all():
-        trash_tasks = Task.query.filter(Task.is_deleted == True).all()
+    def purge_all(user_id):
+        trash_tasks = Task.query.filter(Task.user_id == user_id, Task.is_deleted == True).all()
         count = len(trash_tasks)
         for task in trash_tasks:
             db.session.delete(task)
@@ -233,8 +236,8 @@ class TaskController:
         return count
         
     @staticmethod
-    def purge_one(task_id):
-        task = Task.query.get(task_id)
+    def purge_one(user_id, task_id):
+        task = Task.query.filter(Task.id == task_id, Task.user_id == user_id).first()
         if not task or not task.is_deleted:
             return 0
         db.session.delete(task)
