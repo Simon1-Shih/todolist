@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar as CalendarIcon, Clock, Timer } from 'lucide-react';
-import type { Category, Task } from '../App';
+import type { AppUser, Availability, Category, Task } from '../App';
 
 interface AddTaskModalProps {
   isOpen: boolean;
@@ -9,9 +9,12 @@ interface AddTaskModalProps {
   editingTask?: Task | null;
   initialDate?: string;
   onSave?: (task: Task) => void;
+  delegationUser?: AppUser | null;
+  delegationAvailability?: Availability | null;
+  onDelegationDateChange?: (date: string) => void;
 }
 
-export function AddTaskModal({ isOpen, onClose, categories, editingTask, initialDate, onSave, onAddCategory }: AddTaskModalProps & { onAddCategory?: (name: string) => Promise<Category | undefined> }) {
+export function AddTaskModal({ isOpen, onClose, categories, editingTask, initialDate, onSave, onAddCategory, delegationUser, delegationAvailability, onDelegationDateChange }: AddTaskModalProps & { onAddCategory?: (name: string) => Promise<Category | undefined> }) {
   const [selectedCats, setSelectedCats] = useState<number[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -22,6 +25,7 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
   const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const isDelegating = !!delegationUser && !editingTask;
 
   useEffect(() => {
     if (isOpen) {
@@ -73,6 +77,27 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isDelegating) {
+      const requestedHours = parseFloat(estimatedTime || '0');
+      const currentDayHours = delegationAvailability?.dayHours ?? 0;
+      const totalHours = currentDayHours + requestedHours;
+
+      if (!estimatedTime || requestedHours <= 0) {
+        window.alert('所需花費時間必填。');
+        return;
+      }
+
+      if (totalHours > 8) {
+        window.alert('被需求人當日總工時會超過八小時，無法新建需求。');
+        return;
+      }
+
+      if (totalHours >= 6) {
+        const confirmed = window.confirm('當日總工時已達六小時以上，不一定能完成。仍要新增需求嗎？');
+        if (!confirmed) return;
+      }
+    }
+
     if (onSave) {
       onSave({
         id: editingTask ? editingTask.id : 0,
@@ -81,7 +106,7 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
         date,
         time: time || undefined,
         estimatedTime: estimatedTime ? (parseFloat(estimatedTime) * 60).toString() : undefined,
-        categoryIds: selectedCats,
+        categoryIds: isDelegating ? [] : selectedCats,
         priority,
         completed: editingTask ? editingTask.completed : false,
         important: editingTask ? editingTask.important : false,
@@ -96,8 +121,10 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
       <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
         <div className="px-8 pt-8 pb-4 flex justify-between items-start">
           <div>
-            <h2 className="text-[24px] font-semibold text-on-surface">{editingTask ? 'Edit Task' : 'Add Task'}</h2>
-            <p className="text-[14px] text-on-surface-variant mt-1">Focus on what matters most today.</p>
+            <h2 className="text-[24px] font-semibold text-on-surface">{editingTask ? 'Edit Task' : isDelegating ? 'Add Request' : 'Add Task'}</h2>
+            <p className="text-[14px] text-on-surface-variant mt-1">
+              {isDelegating ? `Requesting work from ${delegationUser?.name || delegationUser?.email}.` : 'Focus on what matters most today.'}
+            </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-md hover:bg-slate-100">
             <X size={24} />
@@ -140,7 +167,10 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
                   id="due-date"
                   type="date"
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={(e) => {
+                    setDate(e.target.value);
+                    if (isDelegating) onDelegationDateChange?.(e.target.value);
+                  }}
                   className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary transition-all outline-none text-[14px]"
                   required
                 />
@@ -170,12 +200,13 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
                 <input
                   id="estimated-time"
                   type="number"
-                  min="0"
+                  min={isDelegating ? '0.5' : '0'}
                   step="0.5"
                   placeholder="e.g. 1.5"
                   value={estimatedTime}
                   onChange={(e) => setEstimatedTime(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary transition-all outline-none text-[14px]"
+                  required={isDelegating}
                 />
                 <Timer size={16} className="absolute left-3 top-3.5 text-slate-400" />
               </div>
@@ -201,6 +232,24 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
             </select>
           </div>
 
+          {isDelegating && delegationAvailability && (
+            <div className="grid grid-cols-3 gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-[12px]">
+              <div>
+                <span className="block text-slate-500 font-semibold">常規工作</span>
+                <span className="block text-[18px] font-bold text-slate-900">{delegationAvailability.regularWork}</span>
+              </div>
+              <div>
+                <span className="block text-slate-500 font-semibold">其他人需求</span>
+                <span className="block text-[18px] font-bold text-slate-900">{delegationAvailability.otherRequests}</span>
+              </div>
+              <div>
+                <span className="block text-slate-500 font-semibold">當日已佔用</span>
+                <span className="block text-[18px] font-bold text-slate-900">{delegationAvailability.dayHours}h</span>
+              </div>
+            </div>
+          )}
+
+          {!isDelegating && (
           <div className="space-y-2">
             <label className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Category</label>
             <div className="flex flex-wrap gap-2 mt-2 items-center">
@@ -240,13 +289,14 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
               )}
             </div>
           </div>
+          )}
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
             <button type="button" onClick={onClose} className="px-6 py-2.5 rounded-xl text-slate-600 font-semibold text-[14px] hover:bg-slate-100 transition-colors">
               Cancel
             </button>
             <button type="submit" className="px-8 py-2.5 bg-primary text-white rounded-xl font-semibold text-[14px] hover:shadow-lg hover:shadow-primary/20 hover:-translate-y-0.5 transition-all outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
-              {editingTask ? 'Save Changes' : 'Save Task'}
+              {editingTask ? 'Save Changes' : isDelegating ? 'Send Request' : 'Save Task'}
             </button>
           </div>
         </form>

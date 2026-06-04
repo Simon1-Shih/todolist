@@ -1,14 +1,82 @@
 from backend.models import db
 from backend.models.task import Task
 from backend.models.category import Category
+from backend.models.notification import Notification
+from backend.models.user import User
 from datetime import date
 from sqlalchemy import case
 
 class TaskController:
+    REQUESTER_CATEGORY_COLORS = ['bg-emerald-500', 'bg-indigo-500', 'bg-pink-500', 'bg-teal-500', 'bg-orange-500', 'bg-purple-500', 'bg-cyan-500']
+
     @staticmethod
     def _get_categories_for_task(task):
         """取得任務關聯的分類 IDs"""
         return [cat.id for cat in task.categories.all()]
+
+    @staticmethod
+    def _display_name(user):
+        return user.name or user.email
+
+    @staticmethod
+    def _ensure_requester_category(assignee_id, requester):
+        label = TaskController._display_name(requester)
+        category = Category.query.filter(Category.user_id == assignee_id, Category.label == label).first()
+        if category:
+            return category
+
+        count = Category.query.filter(Category.user_id == assignee_id).count()
+        category = Category(
+            user_id=assignee_id,
+            label=label,
+            color=TaskController.REQUESTER_CATEGORY_COLORS[count % len(TaskController.REQUESTER_CATEGORY_COLORS)]
+        )
+        db.session.add(category)
+        db.session.flush()
+        return category
+
+    @staticmethod
+    def _notify_requester(task, status):
+        if not task.requester_id or task.requester_id == task.user_id:
+            return
+
+        exists = Notification.query.filter(
+            Notification.user_id == task.requester_id,
+            Notification.task_id == task.id,
+            Notification.status == status,
+        ).first()
+        if exists:
+            return
+
+        assignee = task.assignee or User.query.get(task.user_id)
+        assignee_name = TaskController._display_name(assignee) if assignee else 'user'
+        status_label = {
+            'completed': '完成',
+            'deleted': '刪除',
+            'purged': '完全刪除',
+            'overdue': '逾期',
+        }.get(status, status)
+        db.session.add(Notification(
+            user_id=task.requester_id,
+            actor_id=task.user_id,
+            task_id=task.id,
+            status=status,
+            message=f'委託{assignee_name} 的{task.title} 已 {status_label}',
+            variant='success' if status == 'completed' else 'danger',
+        ))
+
+    @staticmethod
+    def create_overdue_notifications(user_id):
+        today = date.today().isoformat()
+        overdue_tasks = Task.query.filter(
+            Task.requester_id == user_id,
+            Task.date < today,
+            Task.completed == False,
+            Task.is_deleted == False,
+        ).all()
+        for task in overdue_tasks:
+            TaskController._notify_requester(task, 'overdue')
+        db.session.commit()
 
     @staticmethod
     def get_all(user_id, filter_type='all', search='', sort_by='date', sort_order='asc'):
@@ -70,8 +138,14 @@ class TaskController:
 
     @staticmethod
     def create(user_id, data):
-        task = Task(
-            user_id=user_id,
+        assignee_id = int(data.get('assigneeId') or user_id)
+        if assignee_id != user_id and not User.query.get(assignee_id):
+            return None
+
+        requester = User.query.get(user_id)
+        delegated_task = Task(
+            user_id=assignee_id,
+            requester_id=user_id if assignee_id != user_id else None,
             title=data['title'],
             description=data.get('description', ''),
             date=data['date'],
@@ -83,14 +157,34 @@ class TaskController:
             is_deleted=False,
             recurrence=data.get('recurrence', 'none')
         )
-        db.session.add(task)
+        db.session.add(delegated_task)
         db.session.flush()
         category_ids = data.get('categoryIds', [])
-        if isinstance(category_ids, list) and category_ids:
-            categories = Category.query.filter(Category.id.in_(category_ids), Category.user_id == user_id).all()
-            task.categories.extend(categories)
+        if assignee_id != user_id and requester:
+            delegated_task.categories.append(TaskController._ensure_requester_category(assignee_id, requester))
+            assignee = User.query.get(assignee_id)
+            mirror_description = data.get('description', '')
+            assignee_name = TaskController._display_name(assignee) if assignee else 'user'
+            mirror_task = Task(
+                user_id=user_id,
+                requester_id=None,
+                title=data['title'],
+                description=f'委託給 {assignee_name}' + (f'\n{mirror_description}' if mirror_description else ''),
+                date=data['date'],
+                time=data.get('time'),
+                estimated_time=int(data['estimatedTime']) if data.get('estimatedTime') else None,
+                priority=data.get('priority', 'Medium'),
+                completed=False,
+                important=False,
+                is_deleted=False,
+                recurrence='none'
+            )
+            db.session.add(mirror_task)
+        elif isinstance(category_ids, list) and category_ids:
+            categories = Category.query.filter(Category.id.in_(category_ids), Category.user_id == assignee_id).all()
+            delegated_task.categories.extend(categories)
         db.session.commit()
-        return task
+        return mirror_task if assignee_id != user_id and requester else delegated_task
 
     @staticmethod
     def update(user_id, task_id, data):
@@ -159,6 +253,8 @@ class TaskController:
             
         was_completed = task.completed
         task.completed = not task.completed
+        if not was_completed and task.completed:
+            TaskController._notify_requester(task, 'completed')
         
         created_task = None
         
@@ -223,6 +319,7 @@ class TaskController:
         if not task:
             return None
         task.is_deleted = True
+        TaskController._notify_requester(task, 'deleted')
         db.session.commit()
         return task
 
@@ -231,6 +328,7 @@ class TaskController:
         trash_tasks = Task.query.filter(Task.user_id == user_id, Task.is_deleted == True).all()
         count = len(trash_tasks)
         for task in trash_tasks:
+            TaskController._notify_requester(task, 'purged')
             db.session.delete(task)
         db.session.commit()
         return count
@@ -240,6 +338,24 @@ class TaskController:
         task = Task.query.filter(Task.id == task_id, Task.user_id == user_id).first()
         if not task or not task.is_deleted:
             return 0
+        TaskController._notify_requester(task, 'purged')
         db.session.delete(task)
         db.session.commit()
         return 1
+
+    @staticmethod
+    def get_availability(requester_id, assignee_id, due_date):
+        tasks = Task.query.filter(
+            Task.user_id == assignee_id,
+            Task.date <= due_date,
+            Task.completed == False,
+            Task.is_deleted == False,
+        ).all()
+        day_tasks = [task for task in tasks if task.date == due_date]
+
+        return {
+            'regularWork': sum(1 for task in tasks if not task.requester_id),
+            'otherRequests': sum(1 for task in tasks if task.requester_id and task.requester_id != requester_id),
+            'yourRequests': sum(1 for task in tasks if task.requester_id == requester_id),
+            'dayHours': round(sum((task.estimated_time or 0) for task in day_tasks) / 60, 2),
+        }

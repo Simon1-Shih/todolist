@@ -43,6 +43,24 @@ export const api = {
   logout: () =>
     fetchJson(`/auth/logout`, { method: 'POST' }),
 
+  searchUsers: (query: string) =>
+    fetchJson(`/users/search?${new URLSearchParams({ q: query }).toString()}`).then(r => r.data),
+
+  getUserAvailability: (userId: number, dueDate: string) =>
+    fetchJson(`/users/${userId}/availability?${new URLSearchParams({ dueDate }).toString()}`).then(r => r.data),
+
+  getUserTasks: (userId: number) =>
+    fetchJson(`/users/${userId}/tasks`).then(r => r.data),
+
+  getUserCategories: (userId: number) =>
+    fetchJson(`/users/${userId}/categories`).then(r => r.data),
+
+  getNotifications: () =>
+    fetchJson(`/notifications`).then(r => r.data),
+
+  markNotificationsRead: () =>
+    fetchJson(`/notifications/read`, { method: 'PATCH' }).then(r => r.data),
+
   // Tasks
   getTasks: (params?: Record<string, string>) =>
     fetchJson(`/tasks?${new URLSearchParams(params || {}).toString()}`).then(r => r.data),

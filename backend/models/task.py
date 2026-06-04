@@ -13,6 +13,7 @@ class Task(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    requester_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, default='')
     date = db.Column(db.String(10), nullable=False)
@@ -38,4 +39,12 @@ class Task(db.Model):
             'important': self.important,
             'isDeleted': self.is_deleted,
             'recurrence': self.recurrence,
+            'requesterId': self.requester_id,
+            'assigneeId': self.user_id,
+            'requester': self.requester.to_dict() if self.requester else None,
+            'assignee': self.assignee.to_dict() if self.assignee else None,
         }
+
+
+Task.requester = db.relationship('User', foreign_keys=[Task.requester_id], lazy='joined')
+Task.assignee = db.relationship('User', foreign_keys=[Task.user_id], lazy='joined')

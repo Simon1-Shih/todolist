@@ -26,12 +26,32 @@ export interface Task {
   important: boolean;
   isDeleted?: boolean;
   recurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
+  requesterId?: number | null;
+  assigneeId?: number | null;
+  requester?: AppUser | null;
+  assignee?: AppUser | null;
 }
 
-interface AuthUser {
+export interface AppUser {
+  id: number;
   email: string;
   name?: string;
   picture?: string;
+}
+
+export interface Availability {
+  regularWork: number;
+  otherRequests: number;
+  yourRequests: number;
+  dayHours: number;
+}
+
+export interface NotificationItem {
+  id: number;
+  message: string;
+  variant: 'success' | 'danger';
+  read: boolean;
+  createdAt?: string;
 }
 
 const getTodayStr = () => {
@@ -58,8 +78,15 @@ function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authUser, setAuthUser] = useState<AppUser | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [delegatingTo, setDelegatingTo] = useState<AppUser | null>(null);
+  const [delegateAvailability, setDelegateAvailability] = useState<Availability | null>(null);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [viewingUser, setViewingUser] = useState<AppUser | null>(null);
+  const [viewingUserTasks, setViewingUserTasks] = useState<Task[]>([]);
+  const [viewingUserCategories, setViewingUserCategories] = useState<Category[]>([]);
+  const [viewingUserLoading, setViewingUserLoading] = useState(false);
 
   // ?��?跨日?��??�新機制
   const initialTodayRef = React.useRef(getTodayStr());
@@ -109,16 +136,54 @@ function App() {
     })();
   }, [authUser]);
 
+  const refreshNotifications = useCallback(async () => {
+    if (!authUser) return;
+    try {
+      const data = await api.getNotifications();
+      setNotifications(data || []);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    }
+  }, [authUser]);
+
+  useEffect(() => {
+    refreshNotifications();
+  }, [refreshNotifications]);
+
   // 移除?�本每當 filter/search 變�?就�???fetch ??useEffect
   // ?�?�篩?�改?��?�?useMemo ?��?
 
   const handleOpenAddTask = (date?: string) => {
     setEditingTask(null);
-    setInitialDate(date || (currentFilter === 'today' && calendarSelectedDate ? calendarSelectedDate : getTodayStr()));
+    const targetDate = date || (currentFilter === 'today' && calendarSelectedDate ? calendarSelectedDate : getTodayStr());
+    setInitialDate(targetDate);
+    if (viewingUser) {
+      setDelegatingTo(viewingUser);
+      setDelegateAvailability(null);
+      api.getUserAvailability(viewingUser.id, targetDate)
+        .then(data => setDelegateAvailability(data))
+        .catch(err => console.error('Failed to load availability:', err));
+    } else {
+      setDelegatingTo(null);
+      setDelegateAvailability(null);
+    }
     setIsAddTaskOpen(true);
   };
 
+  const handleAvailabilityDateChange = async (date: string) => {
+    if (!delegatingTo || !date) return;
+    try {
+      const availability = await api.getUserAvailability(delegatingTo.id, date);
+      setDelegateAvailability(availability);
+    } catch (err) {
+      console.error('Failed to load availability:', err);
+    }
+  };
+
   const handleSelectFilter = (filter: string) => {
+    setViewingUser(null);
+    setViewingUserTasks([]);
+    setViewingUserCategories([]);
     setCurrentFilter(filter);
     setCalendarSelectedDate(null);
     if (filter === 'trash') {
@@ -127,7 +192,7 @@ function App() {
   };
 
   const handleSwitchView = (mode: 'list' | 'calendar') => {
-    if (currentFilter === 'trash') return; // ?�圾桶�??�援?��?模�?
+    if (currentFilter === 'trash' || viewingUser) return; // ?�圾桶�??�援?��?模�?
     setViewMode(mode);
     if (mode === 'calendar') {
       setCalendarSelectedDate(null);
@@ -150,12 +215,40 @@ function App() {
 
   const handleEditTask = (task: Task) => {
     setEditingTask(task);
+    setDelegatingTo(null);
+    setDelegateAvailability(null);
     setInitialDate('');
     setIsAddTaskOpen(true);
   };
 
+  const handleSelectUser = async (user: AppUser) => {
+    setViewingUser(user);
+    setCurrentFilter('all');
+    setCalendarSelectedDate(null);
+    setViewMode('list');
+    setSearchQuery('');
+    setStartDate('');
+    setEndDate('');
+    setViewingUserLoading(true);
+    try {
+      const [taskData, catData] = await Promise.all([
+        api.getUserTasks(user.id),
+        api.getUserCategories(user.id),
+      ]);
+      setViewingUserTasks(taskData || []);
+      setViewingUserCategories(catData || []);
+    } catch (err) {
+      console.error('Failed to load selected user data:', err);
+      setViewingUserTasks([]);
+      setViewingUserCategories([]);
+    } finally {
+      setViewingUserLoading(false);
+    }
+  };
+
   const handleSaveTask = async (task: Task) => {
     const isEditing = !!editingTask;
+    const assigneeId = delegatingTo && !isEditing ? delegatingTo.id : undefined;
     const oldTasks = [...tasks];
 
     // Optimistic Update
@@ -188,15 +281,33 @@ function App() {
           time: task.time || '',
           estimatedTime: task.estimatedTime || '',
           categoryIds: task.categoryIds,
+          assigneeId,
           priority: task.priority,
           recurrence: task.recurrence || 'none',
         });
         // ?��?端�??��??�實?��??��??��??��?
-        setTasks(prev => prev.map(t => t.title === created.title && t.date === created.date ? created : t));
+        setTasks(prev => prev.map(t => t.title === task.title && t.date === task.date && t.id > 1000000000000 ? created : t));
+        if (assigneeId && viewingUser?.id === assigneeId) {
+          const refreshedTasks = await api.getUserTasks(assigneeId);
+          setViewingUserTasks(refreshedTasks || []);
+        }
       }
     } catch (err) {
       console.error('Failed to save task:', err);
       setTasks(oldTasks); // Rollback
+    }
+  };
+
+  const handleOpenNotifications = async () => {
+    await refreshNotifications();
+  };
+
+  const handleMarkNotificationsRead = async () => {
+    try {
+      await api.markNotificationsRead();
+      setNotifications(prev => prev.map(notification => ({ ...notification, read: true })));
+    } catch (err) {
+      console.error('Failed to mark notifications read:', err);
     }
   };
 
@@ -350,8 +461,12 @@ function App() {
     }
   };
 
+  const visibleTaskSource = viewingUser ? viewingUserTasks : tasks;
+  const visibleCategories = viewingUser ? viewingUserCategories : categories;
+  const isContentLoading = loading || viewingUserLoading;
+
   const processedTasks = useMemo(() => {
-    let result = tasks.filter(t => {
+    let result = visibleTaskSource.filter(t => {
       // ?��??��??�濾
       if (searchQuery) {
         const matches = t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -375,7 +490,7 @@ function App() {
       return (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3);
     });
     return result;
-  }, [tasks, searchQuery, startDate, endDate]);
+  }, [visibleTaskSource, searchQuery, startDate, endDate]);
 
   const sortedTasks = processedTasks; // ?��?保�?變數?�稱一??
   let filteredTasks = sortedTasks;
@@ -415,14 +530,14 @@ function App() {
     } else if (currentFilter.startsWith('category-')) {
       const catId = parseInt(currentFilter.replace('category-', ''), 10);
       filteredTasks = activeTasks.filter(t => t.categoryIds.includes(catId));
-      const cat = categories.find(c => c.id === catId);
+      const cat = visibleCategories.find(c => c.id === catId);
       viewTitle = cat ? `${cat.label} Tasks` : 'Category Tasks';
       viewDesc = cat ? `Tasks in the ${cat.label} category.` : '';
     } else {
       // 'all' view
       filteredTasks = activeTasks;
-      viewTitle = 'All Tasks';
-      viewDesc = 'Manage your productivity and focus for today.';
+      viewTitle = viewingUser ? `${viewingUser.name || viewingUser.email}'s All Tasks` : 'All Tasks';
+      viewDesc = viewingUser ? 'Add a task here to create a request for this user.' : 'Manage your productivity and focus for today.';
     }
   }
 
@@ -454,21 +569,25 @@ function App() {
         <Header
           viewMode={viewMode}
           onSwitchView={handleSwitchView}
-          hideCalendarToggle={currentFilter === 'trash'}
+          hideCalendarToggle={currentFilter === 'trash' || !!viewingUser}
           user={authUser}
           onLogout={handleLogout}
+          notifications={notifications}
+          onOpenNotifications={handleOpenNotifications}
+          onMarkNotificationsRead={handleMarkNotificationsRead}
+          onSelectUser={handleSelectUser}
         />
 
         <div className="flex-1 overflow-y-auto w-full">
-          {loading && (
+          {isContentLoading && (
             <div className="flex items-center justify-center h-full text-slate-400 text-sm">
               Loading...
             </div>
           )}
-          {!loading && viewMode === 'list' && (
+          {!isContentLoading && viewMode === 'list' && (
             <Dashboard
               tasks={filteredTasks}
-              categories={categories}
+              categories={visibleCategories}
               title={viewTitle}
               description={viewDesc}
               searchQuery={searchQuery}
@@ -487,12 +606,12 @@ function App() {
               isCompletedView={currentFilter === 'completed'}
             />
           )}
-          {!loading && viewMode === 'calendar' && (
+          {!isContentLoading && viewMode === 'calendar' && (
             <CalendarView
               tasks={sortedTasks}
               filteredTasks={filteredTasks}
               currentFilter={currentFilter}
-              categories={categories}
+              categories={visibleCategories}
               onAddTask={handleOpenAddTask}
               onDateSelect={(dateStr) => {
                 setCalendarSelectedDate(dateStr);
@@ -513,6 +632,9 @@ function App() {
         editingTask={editingTask}
         initialDate={initialDate}
         onAddCategory={handleAddCategory}
+        delegationUser={delegatingTo}
+        delegationAvailability={delegateAvailability}
+        onDelegationDateChange={handleAvailabilityDateChange}
       />
     </div>
   );

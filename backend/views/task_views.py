@@ -2,6 +2,7 @@ from flask import Blueprint, current_app, jsonify, redirect, request, session
 from backend.auth import oauth
 from backend.models import db
 from backend.models.category import Category
+from backend.models.notification import Notification
 from backend.models.task import Task
 from backend.models.user import User
 from backend.controllers.task_controller import TaskController
@@ -136,6 +137,70 @@ def get_tasks():
     return jsonify({'success': True, 'data': tasks, 'message': 'Tasks retrieved successfully'})
 
 
+@api_bp.route('/users/search', methods=['GET'])
+def search_users():
+    query = (request.args.get('q') or '').strip()
+    if not query:
+        return jsonify({'success': True, 'data': []})
+
+    like = f'%{query}%'
+    users = User.query.filter(
+        User.id != current_user_id(),
+        (User.name.ilike(like)) | (User.email.ilike(like)),
+    ).order_by(User.name.asc(), User.email.asc()).limit(5).all()
+    return jsonify({'success': True, 'data': [user.to_dict() for user in users]})
+
+
+@api_bp.route('/users/<int:user_id>/availability', methods=['GET'])
+def get_user_availability(user_id):
+    due_date = (request.args.get('dueDate') or '').strip()
+    if not due_date:
+        return jsonify({'success': False, 'error': 'dueDate is required', 'status_code': 400}), 400
+    if not User.query.get(user_id):
+        return jsonify({'success': False, 'error': 'User not found', 'status_code': 404}), 404
+
+    data = TaskController.get_availability(current_user_id(), user_id, due_date)
+    return jsonify({'success': True, 'data': data})
+
+
+@api_bp.route('/users/<int:user_id>/tasks', methods=['GET'])
+def get_user_tasks(user_id):
+    if not User.query.get(user_id):
+        return jsonify({'success': False, 'error': 'User not found', 'status_code': 404}), 404
+
+    tasks = TaskController.get_all(
+        user_id=user_id,
+        filter_type='all',
+        search='',
+        sort_by='date',
+        sort_order='asc',
+    )
+    return jsonify({'success': True, 'data': tasks})
+
+
+@api_bp.route('/users/<int:user_id>/categories', methods=['GET'])
+def get_user_categories(user_id):
+    if not User.query.get(user_id):
+        return jsonify({'success': False, 'error': 'User not found', 'status_code': 404}), 404
+
+    categories = CategoryController.get_all(user_id)
+    return jsonify({'success': True, 'data': [category.to_dict() for category in categories]})
+
+
+@api_bp.route('/notifications', methods=['GET'])
+def get_notifications():
+    TaskController.create_overdue_notifications(current_user_id())
+    notifications = Notification.query.filter(Notification.user_id == current_user_id()).order_by(Notification.created_at.desc()).limit(30).all()
+    return jsonify({'success': True, 'data': [notification.to_dict() for notification in notifications]})
+
+
+@api_bp.route('/notifications/read', methods=['PATCH'])
+def mark_notifications_read():
+    Notification.query.filter(Notification.user_id == current_user_id(), Notification.read == False).update({'read': True})
+    db.session.commit()
+    return jsonify({'success': True, 'data': {'read': True}})
+
+
 @api_bp.route('/tasks/<int:task_id>', methods=['GET'])
 def get_task(task_id):
     """取得單一任務"""
@@ -153,8 +218,18 @@ def create_task():
         return jsonify({'success': False, 'error': 'Title is required', 'status_code': 400}), 400
     if not data.get('date'):
         return jsonify({'success': False, 'error': 'Date is required', 'status_code': 400}), 400
+    assignee_id = int(data.get('assigneeId') or current_user_id())
+    if assignee_id != current_user_id():
+        if not data.get('estimatedTime'):
+            return jsonify({'success': False, 'error': 'Estimated time is required for delegated tasks', 'status_code': 400}), 400
+        availability = TaskController.get_availability(current_user_id(), assignee_id, data['date'])
+        requested_hours = int(data.get('estimatedTime') or 0) / 60
+        if availability['dayHours'] + requested_hours > 8:
+            return jsonify({'success': False, 'error': 'Assignee is over the 8 hour daily limit', 'status_code': 400}), 400
 
     task = TaskController.create(current_user_id(), data)
+    if not task:
+        return jsonify({'success': False, 'error': 'Assignee not found', 'status_code': 404}), 404
     return jsonify({'success': True, 'data': task.to_dict(), 'message': 'Task created successfully'}), 201
 
 
