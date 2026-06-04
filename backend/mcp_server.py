@@ -18,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from backend.wsgi import create_app
 from backend.controllers.task_controller import TaskController
 from backend.controllers.category_controller import CategoryController
+from backend.models.user import User
 
 # Flask app singleton
 _flask_app = create_app()
@@ -84,6 +85,11 @@ def _task_to_dict(task) -> Dict[str, Any]:
     return dict(task)
 
 
+def _default_user_id() -> Optional[int]:
+    user = User.query.order_by(User.id.asc()).first()
+    return user.id if user else None
+
+
 def _cat_to_dict(cat) -> Dict[str, Any]:
     if hasattr(cat, "to_dict"):
         return cat.to_dict()
@@ -109,7 +115,11 @@ def list_tasks(
         sort_by: date | time | priority
         sort_order: asc | desc
     """
+    user_id = _default_user_id()
+    if not user_id:
+        return {"success": False, "error": "No user found"}
     tasks = TaskController.get_all(
+        user_id=user_id,
         filter_type=filter_type,
         search=search,
         sort_by=sort_by,
@@ -122,7 +132,10 @@ def list_tasks(
 @_with_app_ctx
 def get_task(task_id: int) -> Dict[str, Any]:
     """Get a single task by ID."""
-    task = TaskController.get_by_id(task_id)
+    user_id = _default_user_id()
+    if not user_id:
+        return {"success": False, "error": "No user found"}
+    task = TaskController.get_by_id(user_id, task_id)
     if not task:
         return {"success": False, "error": "Task not found"}
     return {"success": True, "task": task}
@@ -162,7 +175,12 @@ def create_task(
         "categoryIds": category_ids or [],
         "recurrence": recurrence,
     }
-    task = TaskController.create(data)
+    user_id = _default_user_id()
+    if not user_id:
+        return {"success": False, "error": "No user found"}
+    task, error = TaskController.create(user_id, data)
+    if error:
+        return {"success": False, "error": error}
     return {"success": True, "task": _task_to_dict(task)}
 
 
@@ -201,7 +219,12 @@ def update_task(
     if not data:
         return {"success": False, "error": "No fields provided for update"}
 
-    task = TaskController.update(task_id, data)
+    user_id = _default_user_id()
+    if not user_id:
+        return {"success": False, "error": "No user found"}
+    task, error = TaskController.update(user_id, task_id, data)
+    if error and error != "Task not found":
+        return {"success": False, "error": error}
     if not task:
         return {"success": False, "error": "Task not found"}
     return {"success": True, "task": _task_to_dict(task)}
@@ -211,7 +234,10 @@ def update_task(
 @_with_app_ctx
 def toggle_task_complete(task_id: int) -> Dict[str, Any]:
     """Toggle the completion status of a task."""
-    res = TaskController.toggle_complete(task_id)
+    user_id = _default_user_id()
+    if not user_id:
+        return {"success": False, "error": "No user found"}
+    res = TaskController.toggle_complete(user_id, task_id)
     if not res:
         return {"success": False, "error": "Task not found"}
     task, created_task = res
@@ -225,7 +251,10 @@ def toggle_task_complete(task_id: int) -> Dict[str, Any]:
 @_with_app_ctx
 def toggle_task_important(task_id: int) -> Dict[str, Any]:
     """Toggle the important (starred) status of a task."""
-    task = TaskController.toggle_important(task_id)
+    user_id = _default_user_id()
+    if not user_id:
+        return {"success": False, "error": "No user found"}
+    task = TaskController.toggle_important(user_id, task_id)
     if not task:
         return {"success": False, "error": "Task not found"}
     return {"success": True, "task": _task_to_dict(task)}
@@ -235,7 +264,10 @@ def toggle_task_important(task_id: int) -> Dict[str, Any]:
 @_with_app_ctx
 def delete_task(task_id: int) -> Dict[str, Any]:
     """Soft-delete a task (move to trash)."""
-    task = TaskController.delete(task_id)
+    user_id = _default_user_id()
+    if not user_id:
+        return {"success": False, "error": "No user found"}
+    task = TaskController.delete(user_id, task_id)
     if not task:
         return {"success": False, "error": "Task not found"}
     return {"success": True, "task": _task_to_dict(task), "message": "Task moved to trash"}
@@ -245,7 +277,10 @@ def delete_task(task_id: int) -> Dict[str, Any]:
 @_with_app_ctx
 def restore_task(task_id: int) -> Dict[str, Any]:
     """Restore a task from trash."""
-    task = TaskController.restore(task_id)
+    user_id = _default_user_id()
+    if not user_id:
+        return {"success": False, "error": "No user found"}
+    task = TaskController.restore(user_id, task_id)
     if not task:
         return {"success": False, "error": "Task not found"}
     return {"success": True, "task": _task_to_dict(task), "message": "Task restored from trash"}
@@ -255,7 +290,10 @@ def restore_task(task_id: int) -> Dict[str, Any]:
 @_with_app_ctx
 def purge_task(task_id: int) -> Dict[str, Any]:
     """Permanently delete a single task that is already in trash."""
-    count = TaskController.purge_one(task_id)
+    user_id = _default_user_id()
+    if not user_id:
+        return {"success": False, "error": "No user found"}
+    count = TaskController.purge_one(user_id, task_id)
     if count == 0:
         return {"success": False, "error": "Task not found or not in trash"}
     return {"success": True, "message": f"Task {task_id} permanently deleted"}
@@ -265,7 +303,10 @@ def purge_task(task_id: int) -> Dict[str, Any]:
 @_with_app_ctx
 def purge_all_trash() -> Dict[str, Any]:
     """Permanently delete all tasks in trash."""
-    count = TaskController.purge_all()
+    user_id = _default_user_id()
+    if not user_id:
+        return {"success": False, "error": "No user found"}
+    count = TaskController.purge_all(user_id)
     return {"success": True, "purged": count, "message": f"{count} tasks permanently deleted"}
 
 

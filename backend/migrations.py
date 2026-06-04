@@ -17,6 +17,9 @@ def run_startup_migrations(app):
             if 'requester_id' not in task_columns:
                 add_nullable_integer_column('tasks', 'requester_id', dialect, references='users(id)')
                 create_named_index('tasks', 'requester_id', dialect)
+            if 'delegated_task_id' not in task_columns:
+                add_nullable_integer_column('tasks', 'delegated_task_id', dialect, references='tasks(id)')
+                create_named_index('tasks', 'delegated_task_id', dialect)
 
         if 'categories' in table_names:
             category_columns = {column['name'] for column in inspector.get_columns('categories')}

@@ -175,6 +175,24 @@ def get_user_tasks(user_id):
         sort_by='date',
         sort_order='asc',
     )
+    if user_id != current_user_id():
+        masked_tasks = []
+        for task in tasks:
+            if task.get('requesterId') == current_user_id():
+                masked_tasks.append(task)
+                continue
+
+            masked_tasks.append({
+                **task,
+                'title': '他人委託' if task.get('requesterId') else '常規工作',
+                'description': '',
+                'categoryIds': [],
+                'priority': '',
+                'recurrence': 'none',
+                'requester': None,
+                'assignee': None,
+            })
+        tasks = masked_tasks
     return jsonify({'success': True, 'data': tasks})
 
 
@@ -227,10 +245,12 @@ def create_task():
         if availability['dayHours'] + requested_hours > 8:
             return jsonify({'success': False, 'error': 'Assignee is over the 8 hour daily limit', 'status_code': 400}), 400
 
-    task = TaskController.create(current_user_id(), data)
+    task, error = TaskController.create(current_user_id(), data)
+    if error:
+        return jsonify({'success': False, 'error': error, 'status_code': 400}), 400
     if not task:
         return jsonify({'success': False, 'error': 'Assignee not found', 'status_code': 404}), 404
-    return jsonify({'success': True, 'data': task.to_dict(), 'message': 'Task created successfully'}), 201
+    return jsonify({'success': True, 'data': TaskController._to_dict_with_categories(task), 'message': 'Task created successfully'}), 201
 
 
 @api_bp.route('/tasks/<int:task_id>', methods=['PUT'])
@@ -240,10 +260,12 @@ def update_task(task_id):
     if not data or not data.get('title'):
         return jsonify({'success': False, 'error': 'Title is required', 'status_code': 400}), 400
 
-    task = TaskController.update(current_user_id(), task_id, data)
+    task, error = TaskController.update(current_user_id(), task_id, data)
+    if error and error != 'Task not found':
+        return jsonify({'success': False, 'error': error, 'status_code': 400}), 400
     if not task:
         return jsonify({'success': False, 'error': 'Task not found', 'status_code': 404}), 404
-    return jsonify({'success': True, 'data': task.to_dict(), 'message': 'Task updated successfully'})
+    return jsonify({'success': True, 'data': TaskController._to_dict_with_categories(task), 'message': 'Task updated successfully'})
 
 
 @api_bp.route('/tasks/<int:task_id>/toggle-complete', methods=['PATCH'])
@@ -256,11 +278,11 @@ def toggle_complete(task_id):
     task, created_task = res
     response_data = {
         'success': True,
-        'data': task.to_dict(),
+        'data': TaskController._to_dict_with_categories(task),
         'message': 'Completion status toggled'
     }
     if created_task:
-        response_data['createdTask'] = created_task.to_dict()
+        response_data['createdTask'] = TaskController._to_dict_with_categories(created_task)
         
     return jsonify(response_data)
 
@@ -271,7 +293,7 @@ def toggle_important(task_id):
     task = TaskController.toggle_important(current_user_id(), task_id)
     if not task:
         return jsonify({'success': False, 'error': 'Task not found', 'status_code': 404}), 404
-    return jsonify({'success': True, 'data': task.to_dict(), 'message': 'Important status toggled'})
+    return jsonify({'success': True, 'data': TaskController._to_dict_with_categories(task), 'message': 'Important status toggled'})
 
 
 @api_bp.route('/tasks/<int:task_id>', methods=['DELETE'])
@@ -280,7 +302,7 @@ def delete_task(task_id):
     task = TaskController.delete(current_user_id(), task_id)
     if not task:
         return jsonify({'success': False, 'error': 'Task not found', 'status_code': 404}), 404
-    return jsonify({'success': True, 'data': task.to_dict(), 'message': 'Task moved to trash'})
+    return jsonify({'success': True, 'data': TaskController._to_dict_with_categories(task), 'message': 'Task moved to trash'})
 
 
 @api_bp.route('/tasks/purge', methods=['DELETE'])
@@ -306,7 +328,7 @@ def restore_task(task_id):
     task = TaskController.restore(current_user_id(), task_id)
     if not task:
         return jsonify({'success': False, 'error': 'Task not found', 'status_code': 404}), 404
-    return jsonify({'success': True, 'data': task.to_dict(), 'message': 'Task restored from trash'})
+    return jsonify({'success': True, 'data': TaskController._to_dict_with_categories(task), 'message': 'Task restored from trash'})
 
 
 # ========== Category APIs ==========
