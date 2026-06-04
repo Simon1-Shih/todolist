@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, jsonify, redirect, request
+from flask import Blueprint, current_app, jsonify, redirect, request, session
 from backend.auth import oauth
 from backend.models import db
 from backend.models.category import Category
@@ -22,7 +22,7 @@ def require_auth():
     if request.method == 'OPTIONS':
         return None
 
-    public_endpoints = {'api.auth_google', 'api.auth_google_callback', 'api.auth_me'}
+    public_endpoints = {'api.auth_google', 'api.auth_google_callback', 'api.auth_me', 'api.auth_debug'}
     if request.endpoint in public_endpoints:
         return None
 
@@ -66,6 +66,28 @@ def assign_unowned_data_to_user(user_id):
 def auth_me():
     user = load_current_user()
     return jsonify({'success': True, 'data': user.to_dict() if user else None})
+
+
+@api_bp.route('/auth/debug', methods=['GET'])
+def auth_debug():
+    session_cookie_name = current_app.config.get('SESSION_COOKIE_NAME', 'session')
+    csrf_cookie_name = current_app.config.get('CSRF_COOKIE_NAME', 'csrf_token')
+    return jsonify({
+        'success': True,
+        'data': {
+            'host': request.host,
+            'isSecure': request.is_secure,
+            'sessionCookieName': session_cookie_name,
+            'hasSessionCookie': session_cookie_name in request.cookies,
+            'hasCsrfCookie': csrf_cookie_name in request.cookies,
+            'sessionHasUser': bool(session.get('user')),
+            'sessionHasCsrf': bool(session.get('csrf_token')),
+            'sessionCookieSecure': current_app.config.get('SESSION_COOKIE_SECURE'),
+            'sessionCookieSameSite': current_app.config.get('SESSION_COOKIE_SAMESITE'),
+            'frontendBaseUrlConfigured': bool(current_app.config.get('FRONTEND_BASE_URL')),
+            'appBaseUrlConfigured': bool(current_app.config.get('APP_BASE_URL')),
+        },
+    })
 
 
 @api_bp.route('/auth/google', methods=['GET'])

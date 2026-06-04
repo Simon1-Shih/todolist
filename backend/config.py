@@ -79,6 +79,7 @@ class Config:
     ACCESS_COOKIE_NAME = os.environ.get('ACCESS_COOKIE_NAME', 'access_token')
     CSRF_COOKIE_NAME = os.environ.get('CSRF_COOKIE_NAME', 'csrf_token')
     ACCESS_TOKEN_EXPIRES_SECONDS = int(os.environ.get('ACCESS_TOKEN_EXPIRES_SECONDS', '86400'))
+    SESSION_COOKIE_NAME = os.environ.get('SESSION_COOKIE_NAME', 'focusflow_session')
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     SESSION_COOKIE_SECURE = os.environ.get('FLASK_CONFIG') == 'production'
@@ -98,6 +99,7 @@ class DevelopmentConfig(Config):
 class ProductionConfig(Config):
     DEBUG = False
     SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'None'
 
 
 config = {
