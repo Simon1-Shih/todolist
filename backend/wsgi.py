@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 
 from backend.auth import init_auth
@@ -30,6 +30,14 @@ def create_app(config_name='default'):
     init_auth(app)
     db.init_app(app)
     app.register_blueprint(api_bp, url_prefix='/api')
+
+    @app.after_request
+    def disable_api_cache(response):
+        if request.path.startswith('/api/'):
+            response.headers['Cache-Control'] = 'no-store, private, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+        return response
 
     if app.config.get('BOOTSTRAP_DB_ON_STARTUP'):
         with app.app_context():
