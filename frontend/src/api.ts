@@ -3,21 +3,38 @@ const API_BASE = (
   viteEnv?.VITE_API_BASE_URL ?? (viteEnv?.DEV ? 'http://localhost:5000/api' : '/api')
 ).replace(/\/$/, '');
 
+function readCookie(name: string) {
+  return document.cookie
+    .split('; ')
+    .find(row => row.startsWith(`${name}=`))
+    ?.split('=')
+    .slice(1)
+    .join('=');
+}
+
 async function fetchJson(url: string, options?: RequestInit) {
+  const method = (options?.method || 'GET').toUpperCase();
+  const headers = new Headers(options?.headers || {});
+  headers.set('Content-Type', 'application/json');
+
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrfToken = readCookie('csrf_token');
+    if (csrfToken) {
+      headers.set('X-CSRF-Token', decodeURIComponent(csrfToken));
+    }
+  }
+
   const res = await fetch(`${API_BASE}${url}`, {
-    headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
     ...options,
+    headers,
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
 
 export const api = {
-  bootstrap: () =>
-    fetchJson(`/bootstrap`).then(r => r.data),
-
   getCurrentUser: () =>
     fetchJson(`/auth/me`).then(r => r.data),
 

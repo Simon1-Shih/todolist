@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, jsonify, redirect, request, session
+from flask import Blueprint, current_app, jsonify, redirect, request
 from backend.auth import oauth
 from backend.models import db
 from backend.models.category import Category
@@ -6,6 +6,13 @@ from backend.models.task import Task
 from backend.models.user import User
 from backend.controllers.task_controller import TaskController
 from backend.controllers.category_controller import CategoryController
+from backend.security import (
+    clear_auth_response,
+    current_user_id,
+    load_current_user,
+    require_csrf,
+    set_auth_cookies,
+)
 
 api_bp = Blueprint('api', __name__)
 
@@ -14,13 +21,15 @@ api_bp = Blueprint('api', __name__)
 def require_auth():
     if request.method == 'OPTIONS':
         return None
-    if request.endpoint and request.endpoint.startswith('api.auth_'):
+
+    public_endpoints = {'api.auth_google', 'api.auth_google_callback', 'api.auth_me'}
+    if request.endpoint in public_endpoints:
         return None
-    if 'user' not in session:
+
+    if not load_current_user():
         return jsonify({'success': False, 'error': 'Unauthorized'}), 401
-    if not session['user'].get('id') and session['user'].get('email'):
-        session['user'] = ensure_user(session['user']).to_dict()
-    return None
+
+    return require_csrf()
 
 
 def get_app_base_url():
@@ -53,29 +62,10 @@ def assign_unowned_data_to_user(user_id):
     db.session.commit()
 
 
-def current_user_id():
-    return session['user']['id']
-
-
 @api_bp.route('/auth/me', methods=['GET'])
 def auth_me():
-    return jsonify({'success': True, 'data': session.get('user')})
-
-
-@api_bp.route('/bootstrap', methods=['GET'])
-def bootstrap():
-    user_id = current_user_id()
-    tasks = TaskController.get_all(user_id=user_id, filter_type='full')
-    categories = CategoryController.get_all(user_id)
-    return jsonify({
-        'success': True,
-        'data': {
-            'user': session.get('user'),
-            'tasks': tasks,
-            'categories': [category.to_dict() for category in categories],
-        },
-        'message': 'Bootstrap data retrieved successfully',
-    })
+    user = load_current_user()
+    return jsonify({'success': True, 'data': user.to_dict() if user else None})
 
 
 @api_bp.route('/auth/google', methods=['GET'])
@@ -96,14 +86,13 @@ def auth_google_callback():
         'picture': user_info.get('picture'),
     })
     assign_unowned_data_to_user(user.id)
-    session['user'] = user.to_dict()
-    return redirect(get_frontend_base_url())
+    response = redirect(get_frontend_base_url())
+    return set_auth_cookies(response, user.to_dict())
 
 
 @api_bp.route('/auth/logout', methods=['POST'])
 def auth_logout():
-    session.clear()
-    return jsonify({'success': True})
+    return clear_auth_response({'success': True})
 
 # ========== Task APIs ==========
 

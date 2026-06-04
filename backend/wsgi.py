@@ -15,12 +15,17 @@ from backend.views import api_bp
 
 def create_app(config_name='default'):
     app = Flask(__name__)
-    app.config.from_object(config[config_name])
+    config_class = config[config_name]
+    app.config.from_object(config_class)
+    if config_name == 'production' and not app.config.get('SECRET_KEY'):
+        raise RuntimeError('SECRET_KEY is required in production')
 
     CORS(
         app,
         resources={r"/api/*": {"origins": ["http://localhost:3000", "https://todolist-6nja.vercel.app"]}},
         supports_credentials=True,
+        allow_headers=['Content-Type', 'X-CSRF-Token'],
+        methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     )
     init_auth(app)
     db.init_app(app)

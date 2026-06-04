@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -27,25 +28,54 @@ def get_database_uri():
     return f'sqlite:///{db_path}'
 
 
+def get_engine_options(database_uri):
+    options = {
+        'pool_pre_ping': True,
+    }
+
+    # SQLite 只用於本機開發；硬塞 QueuePool 參數可能破壞它的預設連線池。
+    if database_uri.startswith('sqlite:'):
+        return options
+
+    parsed = urlparse(database_uri)
+    if parsed.scheme.startswith('postgresql'):
+        return {
+            **options,
+            # Vercel 會開出多個短生命週期的 Function instance。
+            # 每個 instance 的 pool 必須小，否則 Neon/Postgres 連線數會被瞬間打爆。
+            'pool_size': int(os.environ.get('DB_POOL_SIZE', '1')),
+            'max_overflow': int(os.environ.get('DB_MAX_OVERFLOW', '2')),
+            'pool_timeout': int(os.environ.get('DB_POOL_TIMEOUT', '10')),
+            'pool_recycle': int(os.environ.get('DB_POOL_RECYCLE', '300')),
+        }
+
+    return options
+
+
+DATABASE_URI = get_database_uri()
+
+
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'focusflow-secret-key')
+    SECRET_KEY = os.environ.get('SECRET_KEY')
     GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
     GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
     APP_BASE_URL = os.environ.get('APP_BASE_URL')
     FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL')
+    ACCESS_COOKIE_NAME = os.environ.get('ACCESS_COOKIE_NAME', 'access_token')
+    CSRF_COOKIE_NAME = os.environ.get('CSRF_COOKIE_NAME', 'csrf_token')
+    ACCESS_TOKEN_EXPIRES_SECONDS = int(os.environ.get('ACCESS_TOKEN_EXPIRES_SECONDS', '86400'))
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     SESSION_COOKIE_SECURE = os.environ.get('FLASK_CONFIG') == 'production'
-    SQLALCHEMY_DATABASE_URI = get_database_uri()
+    SQLALCHEMY_DATABASE_URI = DATABASE_URI
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_pre_ping': True,
-    }
+    SQLALCHEMY_ENGINE_OPTIONS = get_engine_options(DATABASE_URI)
     BOOTSTRAP_DB_ON_STARTUP = False
 
 
 class DevelopmentConfig(Config):
     DEBUG = True
+    SECRET_KEY = Config.SECRET_KEY or 'dev-only-change-me'
     BOOTSTRAP_DB_ON_STARTUP = True
 
 
