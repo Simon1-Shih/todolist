@@ -52,6 +52,20 @@ def get_engine_options(database_uri):
     return options
 
 
+def get_cors_origins():
+    configured_origins = os.environ.get('CORS_ORIGINS')
+    if configured_origins:
+        return [origin.strip().rstrip('/') for origin in configured_origins.split(',') if origin.strip()]
+
+    frontend_base_url = os.environ.get('FRONTEND_BASE_URL')
+    app_base_url = os.environ.get('APP_BASE_URL')
+    origins = []
+    for origin in (frontend_base_url, app_base_url):
+        if origin:
+            origins.append(origin.rstrip('/'))
+    return origins
+
+
 DATABASE_URI = get_database_uri()
 
 
@@ -61,6 +75,7 @@ class Config:
     GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
     APP_BASE_URL = os.environ.get('APP_BASE_URL')
     FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL')
+    CORS_ORIGINS = get_cors_origins()
     ACCESS_COOKIE_NAME = os.environ.get('ACCESS_COOKIE_NAME', 'access_token')
     CSRF_COOKIE_NAME = os.environ.get('CSRF_COOKIE_NAME', 'csrf_token')
     ACCESS_TOKEN_EXPIRES_SECONDS = int(os.environ.get('ACCESS_TOKEN_EXPIRES_SECONDS', '86400'))
@@ -76,6 +91,7 @@ class Config:
 class DevelopmentConfig(Config):
     DEBUG = True
     SECRET_KEY = Config.SECRET_KEY or 'dev-only-change-me'
+    CORS_ORIGINS = sorted(set(Config.CORS_ORIGINS + ['http://localhost:3000']))
     BOOTSTRAP_DB_ON_STARTUP = True
 
 

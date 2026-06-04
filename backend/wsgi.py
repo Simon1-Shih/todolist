@@ -22,7 +22,7 @@ def create_app(config_name='default'):
 
     CORS(
         app,
-        resources={r"/api/*": {"origins": ["http://localhost:3000", "https://todolist-6nja.vercel.app"]}},
+        resources={r"/api/*": {"origins": app.config.get('CORS_ORIGINS', [])}},
         supports_credentials=True,
         allow_headers=['Content-Type', 'X-CSRF-Token'],
         methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
