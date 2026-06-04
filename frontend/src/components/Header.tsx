@@ -32,6 +32,25 @@ export function Header({ viewMode, onSwitchView, hideCalendarToggle, user, onLog
   const displayName = user.name || user.email;
   const fallbackInitial = displayName.slice(0, 1).toUpperCase();
   const hasUnreadNotifications = notifications.some(notification => !notification.read);
+  const highlightMatch = (text: string) => {
+    const query = userQuery.trim();
+    if (!query) return text;
+
+    const matchIndex = text.toLowerCase().indexOf(query.toLowerCase());
+    if (matchIndex === -1) return text;
+
+    const before = text.slice(0, matchIndex);
+    const match = text.slice(matchIndex, matchIndex + query.length);
+    const after = text.slice(matchIndex + query.length);
+
+    return (
+      <>
+        {before}
+        <span className="rounded bg-blue-100 px-0.5 text-blue-700">{match}</span>
+        {after}
+      </>
+    );
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -121,15 +140,15 @@ export function Header({ viewMode, onSwitchView, hideCalendarToggle, user, onLog
                       key={candidate.id}
                       type="button"
                       onClick={() => {
-                        setSelectedUser(candidate);
-                        setUserQuery(candidateName);
+                        setSelectedUser(null);
+                        setUserQuery('');
                         setUserCandidates([]);
                     onSelectUser(candidate);
                       }}
                   className="w-full px-5 py-3 text-left transition-colors hover:bg-slate-50"
                     >
-                      <span className="block truncate text-[14px] font-semibold text-slate-900">{candidateName}</span>
-                      <span className="mt-0.5 block truncate text-[12px] text-slate-500">{candidate.email}</span>
+                      <span className="block truncate text-[14px] font-semibold text-slate-900">{highlightMatch(candidateName)}</span>
+                      <span className="mt-0.5 block truncate text-[12px] text-slate-500">{highlightMatch(candidate.email)}</span>
                     </button>
                   );
                 })}
