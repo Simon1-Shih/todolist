@@ -10,9 +10,11 @@ interface CalendarViewProps {
   onAddTask: (date: string) => void;
   onDateSelect?: (date: string) => void;
   onEditTask: (task: Task) => void;
+  canManageTask?: (task: Task) => boolean;
+  showRemainingHours?: boolean;
 }
 
-export function CalendarView({ tasks, filteredTasks, currentFilter, categories, onAddTask, onDateSelect, onEditTask }: CalendarViewProps) {
+export function CalendarView({ tasks, filteredTasks, currentFilter, categories, onAddTask, onDateSelect, onEditTask, canManageTask, showRemainingHours }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   
   const daysOfWeek = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -138,7 +140,10 @@ export function CalendarView({ tasks, filteredTasks, currentFilter, categories, 
                 const dateStr = day.fullDate;
                 // Basic matching for tasks. Exact dateStr match, or check if day is today and task date indicates 'Today'
                 const dayTasks = tasks.filter(t => !t.isDeleted && (t.date === dateStr || (day.isToday && t.date.includes('Today'))));
-
+                const occupiedHours = dayTasks
+                  .filter(task => !task.completed)
+                  .reduce((total, task) => total + (parseInt(task.estimatedTime || '0', 10) || 0) / 60, 0);
+                const remainingHours = Math.max(0, 8 - occupiedHours);
 
                 return (
                   <div 
@@ -147,10 +152,21 @@ export function CalendarView({ tasks, filteredTasks, currentFilter, categories, 
                     onClick={() => onDateSelect?.(dateStr)}
                     onDoubleClick={(e) => { e.stopPropagation(); onAddTask(dateStr); }}
                   >
-                    <div className="shrink-0 mb-1">
+                    {showRemainingHours && (
+                      <div className="pointer-events-none absolute left-1/2 top-8 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 py-2 text-[12px] font-semibold text-slate-700 shadow-lg group-hover:block">
+                        剩餘工時 {remainingHours.toFixed(1)}h
+                      </div>
+                    )}
+
+                    <div className="shrink-0 mb-1 flex items-center justify-between gap-2">
                       <span className={`text-[12px] font-medium ${day.isCurrentMonth ? 'text-slate-700' : 'text-slate-300'} ${day.isToday ? 'inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-white' : ''}`}>
                         {day.date}
                       </span>
+                      {showRemainingHours && (
+                        <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${remainingHours <= 0 ? 'bg-red-50 text-red-600' : remainingHours <= 2 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                          {remainingHours.toFixed(1)}h
+                        </span>
+                      )}
                     </div>
                     
                     {dayTasks.length > 0 && (
@@ -162,14 +178,17 @@ export function CalendarView({ tasks, filteredTasks, currentFilter, categories, 
                             : 'text-slate-400 font-normal';
                           
                           const completeClass = task.completed ? 'line-through opacity-60' : '';
+                          const canManage = canManageTask?.(task) ?? true;
                           
                           return (
                             <div 
                               key={task.id} 
-                              className={`px-1 py-[2px] ${taskClasses} text-[11px] leading-tight truncate ${completeClass} transition-all hover:bg-slate-100 rounded-sm`}
+                              className={`px-1 py-[2px] ${taskClasses} text-[11px] leading-tight truncate ${completeClass} transition-all rounded-sm ${canManage ? 'hover:bg-slate-100 cursor-pointer' : 'cursor-default'}`}
                               onDoubleClick={(e) => {
                                 e.stopPropagation();
-                                onEditTask(task);
+                                if (canManage) {
+                                  onEditTask(task);
+                                }
                               }}
                             >
                               • {task.title}

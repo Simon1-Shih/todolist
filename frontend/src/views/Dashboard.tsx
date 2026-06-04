@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, Calendar as CalendarIcon, Edit2, Trash2, CheckCircle2, Star, Clock, Plus, RotateCcw, Filter, X, Repeat } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { Task, Category } from '../App';
@@ -18,6 +18,8 @@ interface DashboardProps {
   onAddTask: () => void;
   isTrashView?: boolean;
   isCompletedView?: boolean;
+  readOnly?: boolean;
+  canManageTask?: (task: Task) => boolean;
   startDate: string;
   onStartDateChange: (val: string) => void;
   endDate: string;
@@ -35,16 +37,42 @@ const getTomorrowStr = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-export function Dashboard({ tasks, categories, title, description, searchQuery = "", onSearchChange, onToggleImportant, onToggleComplete, onDelete, onRestore, onEdit, onAddTask, isTrashView, isCompletedView, startDate, onStartDateChange, endDate, onEndDateChange }: DashboardProps) {
+export function Dashboard({ tasks, categories, title, description, searchQuery = "", onSearchChange, onToggleImportant, onToggleComplete, onDelete, onRestore, onEdit, onAddTask, isTrashView, isCompletedView, readOnly, canManageTask, startDate, onStartDateChange, endDate, onEndDateChange }: DashboardProps) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [completedVisibleCount, setCompletedVisibleCount] = useState(10);
+  const completedLoadMoreRef = useRef<HTMLDivElement | null>(null);
   
-  const visibleTasks = tasks.filter(t => {
+  const allVisibleTasks = tasks.filter(t => {
     if (isCompletedView || isTrashView) return true;
     if (t.completed && t.date < getTodayStr()) return false;
     return true;
   });
+  const visibleTasks = useMemo(
+    () => isCompletedView ? allVisibleTasks.slice(0, completedVisibleCount) : allVisibleTasks,
+    [allVisibleTasks, completedVisibleCount, isCompletedView]
+  );
 
-  const completedCount = visibleTasks.filter(t => t.completed).length;
+  const completedCount = allVisibleTasks.filter(t => t.completed).length;
+
+  useEffect(() => {
+    setCompletedVisibleCount(10);
+  }, [isCompletedView, searchQuery, startDate, endDate, tasks.length]);
+
+  useEffect(() => {
+    if (!isCompletedView) return;
+    const node = completedLoadMoreRef.current;
+    if (!node) return;
+
+    const observer = new IntersectionObserver(entries => {
+      const [entry] = entries;
+      if (entry.isIntersecting) {
+        setCompletedVisibleCount(count => Math.min(count + 10, allVisibleTasks.length));
+      }
+    }, { rootMargin: '240px 0px' });
+
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [allVisibleTasks.length, isCompletedView, visibleTasks.length]);
 
   const formatTaskDate = (task: Task) => {
     let dateStr = task.date;
@@ -143,6 +171,8 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
         {visibleTasks.map(task => {
           const primaryCategory = task.categoryIds && task.categoryIds.length > 0 ? categories.find(c => c.id === task.categoryIds[0]) : undefined;
           const bgStripColor = primaryCategory ? primaryCategory.color : 'bg-primary';
+          const canManage = readOnly ? !!canManageTask?.(task) : true;
+          const delegatedToName = task.delegatedAssignee?.name || task.delegatedAssignee?.email;
 
           return (
             <motion.div 
@@ -157,7 +187,7 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
               )}
               
               <div className="flex-shrink-0">
-                {!isTrashView && (
+                {!isTrashView && canManage && (
                   task.completed ? (
                     <button onClick={() => onToggleComplete(task.id)} className="focus:outline-none">
                       <CheckCircle2 size={24} className="text-primary fill-primary/20" />
@@ -177,7 +207,7 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
                 <h3 className={`font-semibold text-[16px] ${task.completed ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                   {task.title}
                 </h3>
-                {task.description && (
+                {(delegatedToName || task.description) && (
                   <motion.div 
                     variants={{
                       rest: { height: 0, opacity: 0, marginTop: 0, marginBottom: 0 },
@@ -186,9 +216,16 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
                     transition={{ duration: 0.2, ease: "easeInOut" }}
                     className="overflow-hidden"
                   >
-                    <p className={`text-[13px] line-clamp-3 ${task.completed ? 'text-slate-400 line-through' : 'text-slate-500'}`}>
-                      {task.description}
-                    </p>
+                    {delegatedToName && (
+                      <p className={`text-[13px] font-semibold ${task.completed ? 'text-slate-400 line-through' : 'text-primary'}`}>
+                        委託給 {delegatedToName}
+                      </p>
+                    )}
+                    {task.description && (
+                      <p className={`text-[13px] line-clamp-3 ${task.completed ? 'text-slate-400 line-through' : 'text-slate-500'}`}>
+                        {task.description}
+                      </p>
+                    )}
                   </motion.div>
                 )}
                 <div className="flex items-center gap-3 mt-1">
@@ -233,6 +270,7 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
                 </div>
               </div>
               
+              {canManage && (
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity mr-2">
                 {isTrashView ? (
                   <>
@@ -268,8 +306,9 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
                   </>
                 )}
               </div>
+              )}
 
-              {!isTrashView && (
+              {!isTrashView && canManage && (
                 <div className="flex items-center ml-2 border-l border-slate-100 pl-4">
                   <button 
                     onClick={() => onToggleImportant(task.id)}
@@ -287,6 +326,11 @@ export function Dashboard({ tasks, categories, title, description, searchQuery =
             </motion.div>
           );
         })}
+        {isCompletedView && visibleTasks.length < allVisibleTasks.length && (
+          <div ref={completedLoadMoreRef} className="h-10 flex items-center justify-center text-[12px] font-semibold text-slate-400">
+            Loading more completed tasks...
+          </div>
+        )}
       </div>
 
       {!isTrashView && !isCompletedView && (

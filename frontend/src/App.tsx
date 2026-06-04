@@ -5,6 +5,7 @@ import { Dashboard } from './views/Dashboard';
 import { AddTaskModal } from './components/AddTaskModal';
 import { CalendarView } from './views/CalendarView';
 import { LoginPage } from './components/LoginPage';
+import { GlobalDialog, type GlobalDialogState } from './components/GlobalDialog';
 import { api } from './api';
 
 export interface Category {
@@ -27,9 +28,12 @@ export interface Task {
   isDeleted?: boolean;
   recurrence?: 'none' | 'daily' | 'weekly' | 'monthly';
   requesterId?: number | null;
+  delegatedTaskId?: number | null;
   assigneeId?: number | null;
   requester?: AppUser | null;
   assignee?: AppUser | null;
+  delegatedAssigneeId?: number | null;
+  delegatedAssignee?: AppUser | null;
 }
 
 export interface AppUser {
@@ -87,6 +91,8 @@ function App() {
   const [viewingUserTasks, setViewingUserTasks] = useState<Task[]>([]);
   const [viewingUserCategories, setViewingUserCategories] = useState<Category[]>([]);
   const [viewingUserLoading, setViewingUserLoading] = useState(false);
+  const [dialog, setDialog] = useState<GlobalDialogState | null>(null);
+  const confirmResolverRef = React.useRef<((confirmed: boolean) => void) | null>(null);
 
   // ?��?跨日?��??�新機制
   const initialTodayRef = React.useRef(getTodayStr());
@@ -146,9 +152,37 @@ function App() {
     }
   }, [authUser]);
 
+  const refreshOwnTasks = useCallback(async () => {
+    if (!authUser) return;
+    const taskData = await api.getTasks({ filter: 'full' });
+    setTasks(taskData || []);
+  }, [authUser]);
+
   useEffect(() => {
     refreshNotifications();
   }, [refreshNotifications]);
+
+  const notify = useCallback((title: string, message: string) => {
+    confirmResolverRef.current = null;
+    setDialog({ kind: 'notice', title, message });
+    window.setTimeout(() => {
+      setDialog(current => current?.kind === 'notice' && current.title === title && current.message === message ? null : current);
+    }, 3000);
+  }, []);
+
+  const confirm = useCallback((title: string, message: string, confirmText?: string) => {
+    setDialog({ kind: 'confirm', title, message, confirmText, cancelText: '取消' });
+    return new Promise<boolean>(resolve => {
+      confirmResolverRef.current = resolve;
+    });
+  }, []);
+
+  const closeDialog = useCallback((confirmed = false) => {
+    const resolver = confirmResolverRef.current;
+    confirmResolverRef.current = null;
+    setDialog(null);
+    resolver?.(confirmed);
+  }, []);
 
   // 移除?�本每當 filter/search 變�?就�???fetch ??useEffect
   // ?�?�篩?�改?��?�?useMemo ?��?
@@ -192,7 +226,7 @@ function App() {
   };
 
   const handleSwitchView = (mode: 'list' | 'calendar') => {
-    if (currentFilter === 'trash' || viewingUser) return; // ?�圾桶�??�援?��?模�?
+    if (currentFilter === 'trash') return; // ?�圾桶�??�援?��?模�?
     setViewMode(mode);
     if (mode === 'calendar') {
       setCalendarSelectedDate(null);
@@ -213,10 +247,29 @@ function App() {
     }
   };
 
+  const refreshViewingUserTasks = useCallback(async (user = viewingUser) => {
+    if (!user) return;
+    const [taskData, catData] = await Promise.all([
+      api.getUserTasks(user.id),
+      api.getUserCategories(user.id),
+    ]);
+    setViewingUserTasks(taskData || []);
+    setViewingUserCategories(catData || []);
+  }, [viewingUser]);
+
   const handleEditTask = (task: Task) => {
     setEditingTask(task);
-    setDelegatingTo(null);
-    setDelegateAvailability(null);
+    const requestAssignee = task.delegatedAssignee || (task.requesterId === authUser?.id ? task.assignee : null);
+    if (requestAssignee && requestAssignee.id !== authUser?.id) {
+      setDelegatingTo(requestAssignee);
+      setDelegateAvailability(null);
+      api.getUserAvailability(requestAssignee.id, task.date)
+        .then(data => setDelegateAvailability(data))
+        .catch(err => console.error('Failed to load availability:', err));
+    } else {
+      setDelegatingTo(null);
+      setDelegateAvailability(null);
+    }
     setInitialDate('');
     setIsAddTaskOpen(true);
   };
@@ -246,19 +299,9 @@ function App() {
     }
   };
 
-  const handleSaveTask = async (task: Task) => {
+  const handleSaveTask = async (task: Task): Promise<boolean> => {
     const isEditing = !!editingTask;
     const assigneeId = delegatingTo && !isEditing ? delegatingTo.id : undefined;
-    const oldTasks = [...tasks];
-
-    // Optimistic Update
-    if (isEditing) {
-      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...task } : t));
-    } else {
-      // ?��??��?一?�臨??ID
-      const tempTask = { ...task, id: Date.now(), completed: false, important: false, isDeleted: false, recurrence: task.recurrence || 'none' };
-      setTasks(prev => [...prev, tempTask]);
-    }
 
     try {
       if (isEditing) {
@@ -273,6 +316,11 @@ function App() {
           recurrence: task.recurrence || 'none',
         });
         setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+        if (viewingUser) {
+          await refreshOwnTasks();
+          await refreshViewingUserTasks();
+        }
+        notify('Task updated', '後端已成功更新 task。');
       } else {
         const created = await api.createTask({
           title: task.title,
@@ -285,16 +333,18 @@ function App() {
           priority: task.priority,
           recurrence: task.recurrence || 'none',
         });
-        // ?��?端�??��??�實?��??��??��??��?
-        setTasks(prev => prev.map(t => t.title === task.title && t.date === task.date && t.id > 1000000000000 ? created : t));
-        if (assigneeId && viewingUser?.id === assigneeId) {
-          const refreshedTasks = await api.getUserTasks(assigneeId);
-          setViewingUserTasks(refreshedTasks || []);
+        setTasks(prev => prev.some(t => t.id === created.id) ? prev.map(t => t.id === created.id ? created : t) : [...prev, created]);
+        if (viewingUser) {
+          await refreshOwnTasks();
+          await refreshViewingUserTasks();
         }
+        notify(assigneeId ? 'Request created' : 'Task created', '後端已成功建立 task。');
       }
+      return true;
     } catch (err) {
       console.error('Failed to save task:', err);
-      setTasks(oldTasks); // Rollback
+      notify('儲存失敗', err instanceof Error ? err.message : '後端未能建立或更新 task。');
+      return false;
     }
   };
 
@@ -375,6 +425,10 @@ function App() {
     try {
       const updated = await api.toggleImportant(taskId);
       setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
+      if (viewingUser) {
+        await refreshOwnTasks();
+        await refreshViewingUserTasks();
+      }
     } catch (err) {
       console.error('Failed to toggle important:', err);
       setTasks(oldTasks); // Rollback
@@ -400,6 +454,10 @@ function App() {
         }
         return newTasks;
       });
+      if (viewingUser) {
+        await refreshOwnTasks();
+        await refreshViewingUserTasks();
+      }
     } catch (err) {
       console.error('Failed to toggle complete:', err);
       setTasks(oldTasks); // Rollback
@@ -414,6 +472,10 @@ function App() {
     try {
       const updated = await api.restoreTask(taskId);
       setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
+      if (viewingUser) {
+        await refreshOwnTasks();
+        await refreshViewingUserTasks();
+      }
     } catch (err) {
       console.error('Failed to restore task:', err);
       setTasks(oldTasks); // Rollback
@@ -421,8 +483,15 @@ function App() {
   };
 
   const handleDeleteTask = async (taskId: number) => {
-    const task = tasks.find(t => t.id === taskId);
+    const task = [...tasks, ...viewingUserTasks].find(t => t.id === taskId);
     if (!task) return;
+
+    const confirmed = await confirm(
+      task.isDeleted ? '永久刪除 task' : '刪除 task',
+      task.isDeleted ? '確定要完全刪除這個 task 嗎？這個動作無法復原。' : '確定要把這個 task 移到垃圾桶嗎？',
+      task.isDeleted ? '永久刪除' : '移到垃圾桶'
+    );
+    if (!confirmed) return;
 
     const oldTasks = [...tasks];
     
@@ -431,9 +500,15 @@ function App() {
       setTasks(prev => prev.filter(t => t.id !== taskId));
       try {
         await api.purgeSingleTask(taskId);
+        if (viewingUser) {
+          await refreshOwnTasks();
+          await refreshViewingUserTasks();
+        }
+        notify('Task deleted', '後端已完全刪除 task。');
       } catch (err) {
         console.error('Failed to permanently delete task:', err);
         setTasks(oldTasks); // Rollback
+        notify('刪除失敗', err instanceof Error ? err.message : '後端未能完全刪除 task。');
       }
     } else {
       // Optimistic Move to Trash
@@ -441,9 +516,15 @@ function App() {
       try {
         const updated = await api.deleteTask(taskId);
         setTasks(prev => prev.map(t => t.id === taskId ? updated : t));
+        if (viewingUser) {
+          await refreshOwnTasks();
+          await refreshViewingUserTasks();
+        }
+        notify('Task moved to trash', '後端已將 task 移到垃圾桶。');
       } catch (err) {
         console.error('Failed to delete task:', err);
         setTasks(oldTasks); // Rollback
+        notify('刪除失敗', err instanceof Error ? err.message : '後端未能刪除 task。');
       }
     }
   };
@@ -461,7 +542,19 @@ function App() {
     }
   };
 
-  const visibleTaskSource = viewingUser ? viewingUserTasks : tasks;
+  const visibleTaskSource = viewingUser
+    ? viewingUserTasks.map(task => {
+        if (task.requesterId === authUser?.id) return task;
+        return {
+          ...task,
+          title: task.requesterId ? '他人委託' : '常規工作',
+          description: undefined,
+          categoryIds: [],
+          priority: '',
+          recurrence: 'none' as const,
+        };
+      })
+    : tasks;
   const visibleCategories = viewingUser ? viewingUserCategories : categories;
   const isContentLoading = loading || viewingUserLoading;
 
@@ -524,7 +617,16 @@ function App() {
       viewTitle = 'Important Tasks';
       viewDesc = 'Your starred tasks.';
     } else if (currentFilter === 'completed') {
-      filteredTasks = activeTasks.filter(t => t.completed);
+      filteredTasks = activeTasks
+        .filter(t => t.completed)
+        .sort((a, b) => {
+          const dateCompare = normalizeDate(b.date).localeCompare(normalizeDate(a.date));
+          if (dateCompare !== 0) return dateCompare;
+
+          const timeA = a.time || '00:00';
+          const timeB = b.time || '00:00';
+          return timeB.localeCompare(timeA);
+        });
       viewTitle = 'Completed Tasks';
       viewDesc = 'All your completed tasks.';
     } else if (currentFilter.startsWith('category-')) {
@@ -569,7 +671,7 @@ function App() {
         <Header
           viewMode={viewMode}
           onSwitchView={handleSwitchView}
-          hideCalendarToggle={currentFilter === 'trash' || !!viewingUser}
+          hideCalendarToggle={currentFilter === 'trash'}
           user={authUser}
           onLogout={handleLogout}
           notifications={notifications}
@@ -604,6 +706,8 @@ function App() {
               onAddTask={() => handleOpenAddTask()}
               isTrashView={currentFilter === 'trash'}
               isCompletedView={currentFilter === 'completed'}
+              readOnly={!!viewingUser}
+              canManageTask={(task) => !viewingUser || task.requesterId === authUser?.id}
             />
           )}
           {!isContentLoading && viewMode === 'calendar' && (
@@ -619,6 +723,8 @@ function App() {
                 setViewMode('list');
               }}
               onEditTask={handleEditTask}
+              canManageTask={(task) => !viewingUser || task.requesterId === authUser?.id}
+              showRemainingHours={!!viewingUser}
             />
           )}
         </div>
@@ -635,6 +741,13 @@ function App() {
         delegationUser={delegatingTo}
         delegationAvailability={delegateAvailability}
         onDelegationDateChange={handleAvailabilityDateChange}
+        onNotify={notify}
+        onConfirm={confirm}
+      />
+      <GlobalDialog
+        dialog={dialog}
+        onConfirm={() => closeDialog(true)}
+        onCancel={() => closeDialog(false)}
       />
     </div>
   );

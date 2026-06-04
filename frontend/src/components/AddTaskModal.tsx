@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Calendar as CalendarIcon, Clock, Timer } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Calendar as CalendarIcon, Clock, Timer, X } from 'lucide-react';
 import type { AppUser, Availability, Category, Task } from '../App';
 
 interface AddTaskModalProps {
@@ -8,13 +8,29 @@ interface AddTaskModalProps {
   categories: Category[];
   editingTask?: Task | null;
   initialDate?: string;
-  onSave?: (task: Task) => void;
+  onSave?: (task: Task) => Promise<boolean> | boolean | void;
+  onAddCategory?: (name: string) => Promise<Category | undefined>;
   delegationUser?: AppUser | null;
   delegationAvailability?: Availability | null;
   onDelegationDateChange?: (date: string) => void;
+  onNotify: (title: string, message: string) => void;
+  onConfirm: (title: string, message: string, confirmText?: string) => Promise<boolean>;
 }
 
-export function AddTaskModal({ isOpen, onClose, categories, editingTask, initialDate, onSave, onAddCategory, delegationUser, delegationAvailability, onDelegationDateChange }: AddTaskModalProps & { onAddCategory?: (name: string) => Promise<Category | undefined> }) {
+export function AddTaskModal({
+  isOpen,
+  onClose,
+  categories,
+  editingTask,
+  initialDate,
+  onSave,
+  onAddCategory,
+  delegationUser,
+  delegationAvailability,
+  onDelegationDateChange,
+  onNotify,
+  onConfirm,
+}: AddTaskModalProps) {
   const [selectedCats, setSelectedCats] = useState<number[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -25,40 +41,38 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
   const [recurrence, setRecurrence] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const isDelegating = !!delegationUser && !editingTask;
+  const isDelegating = !!delegationUser;
 
   useEffect(() => {
-    if (isOpen) {
-      setIsCreatingCategory(false);
-      setNewCategoryName('');
-      if (editingTask) {
-        setTitle(editingTask.title);
-        setDescription(editingTask.description || '');
-        setDate(editingTask.date);
-        setTime(editingTask.time || '');
-        setEstimatedTime(editingTask.estimatedTime ? (parseInt(editingTask.estimatedTime) / 60).toString() : '');
-        setSelectedCats(editingTask.categoryIds || []);
-        setPriority(editingTask.priority || 'Low');
-        setRecurrence(editingTask.recurrence || 'none');
-      } else {
-        setTitle('');
-        setDescription('');
-        setDate(initialDate || '');
-        setTime('');
-        setEstimatedTime('');
-        setSelectedCats([]);
-        setPriority('Low');
-        setRecurrence('none');
-      }
+    if (!isOpen) return;
+
+    setIsCreatingCategory(false);
+    setNewCategoryName('');
+    if (editingTask) {
+      setTitle(editingTask.title);
+      setDescription(editingTask.description || '');
+      setDate(editingTask.date);
+      setTime(editingTask.time || '');
+      setEstimatedTime(editingTask.estimatedTime ? (parseInt(editingTask.estimatedTime, 10) / 60).toString() : '');
+      setSelectedCats(editingTask.categoryIds || []);
+      setPriority(editingTask.priority || 'Low');
+      setRecurrence(editingTask.recurrence || 'none');
+    } else {
+      setTitle('');
+      setDescription('');
+      setDate(initialDate || '');
+      setTime('');
+      setEstimatedTime('');
+      setSelectedCats([]);
+      setPriority('Low');
+      setRecurrence('none');
     }
   }, [isOpen, editingTask, initialDate]);
 
   if (!isOpen) return null;
 
   const handleToggleCategory = (catId: number) => {
-    setSelectedCats(prev =>
-      prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]
-    );
+    setSelectedCats(prev => (prev.includes(catId) ? prev.filter(id => id !== catId) : [...prev, catId]));
   };
 
   const handleCreateCategory = async (e: React.KeyboardEvent | React.FocusEvent) => {
@@ -75,44 +89,52 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
     setNewCategoryName('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (isDelegating) {
+      if (!delegationAvailability) {
+        onNotify('工時資料尚未載入', '請稍候再新增需求。');
+        return;
+      }
       const requestedHours = parseFloat(estimatedTime || '0');
-      const currentDayHours = delegationAvailability?.dayHours ?? 0;
+      const originalHours = editingTask?.date === date && editingTask.estimatedTime
+        ? parseInt(editingTask.estimatedTime, 10) / 60
+        : 0;
+      const currentDayHours = Math.max(0, (delegationAvailability?.dayHours ?? 0) - originalHours);
       const totalHours = currentDayHours + requestedHours;
 
       if (!estimatedTime || requestedHours <= 0) {
-        window.alert('所需花費時間必填。');
+        onNotify('缺少工時', '所需花費時間必填。');
         return;
       }
 
       if (totalHours > 8) {
-        window.alert('被需求人當日總工時會超過八小時，無法新建需求。');
+        onNotify('無法儲存需求', '被需求人當日總工時會超過八小時，無法儲存需求。');
         return;
       }
 
       if (totalHours >= 6) {
-        const confirmed = window.confirm('當日總工時已達六小時以上，不一定能完成。仍要新增需求嗎？');
+        const confirmed = await onConfirm('工時提醒', '當日總工時已達六小時以上，不一定能完成。仍要儲存需求嗎？', '仍要儲存');
         if (!confirmed) return;
       }
     }
 
-    if (onSave) {
-      onSave({
-        id: editingTask ? editingTask.id : 0,
-        title,
-        description: description || undefined,
-        date,
-        time: time || undefined,
-        estimatedTime: estimatedTime ? (parseFloat(estimatedTime) * 60).toString() : undefined,
-        categoryIds: isDelegating ? [] : selectedCats,
-        priority,
-        completed: editingTask ? editingTask.completed : false,
-        important: editingTask ? editingTask.important : false,
-        recurrence,
-      });
-    }
+    const saved = await onSave?.({
+      id: editingTask ? editingTask.id : 0,
+      title,
+      description: description || undefined,
+      date,
+      time: time || undefined,
+      estimatedTime: estimatedTime ? (parseFloat(estimatedTime) * 60).toString() : undefined,
+      categoryIds: isDelegating ? [] : selectedCats,
+      priority,
+      completed: editingTask ? editingTask.completed : false,
+      important: editingTask ? editingTask.important : false,
+      recurrence,
+    });
+
+    if (saved === false) return;
     onClose();
   };
 
@@ -239,7 +261,7 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
                 <span className="block text-[18px] font-bold text-slate-900">{delegationAvailability.regularWork}</span>
               </div>
               <div>
-                <span className="block text-slate-500 font-semibold">其他人需求</span>
+                <span className="block text-slate-500 font-semibold">他人委託</span>
                 <span className="block text-[18px] font-bold text-slate-900">{delegationAvailability.otherRequests}</span>
               </div>
               <div>
@@ -250,45 +272,45 @@ export function AddTaskModal({ isOpen, onClose, categories, editingTask, initial
           )}
 
           {!isDelegating && (
-          <div className="space-y-2">
-            <label className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Category</label>
-            <div className="flex flex-wrap gap-2 mt-2 items-center">
-              {categories.map(cat => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => handleToggleCategory(cat.id)}
-                  className={`px-4 py-2 rounded-full text-[12px] font-semibold transition-all shadow-sm ${
-                    selectedCats.includes(cat.id)
-                      ? 'bg-primary text-white'
-                      : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
-                  }`}
-                >
-                  {cat.label}
-                </button>
-              ))}
+            <div className="space-y-2">
+              <label className="text-[12px] font-semibold tracking-wider text-on-surface-variant block uppercase">Category</label>
+              <div className="flex flex-wrap gap-2 mt-2 items-center">
+                {categories.map(cat => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => handleToggleCategory(cat.id)}
+                    className={`px-4 py-2 rounded-full text-[12px] font-semibold transition-all shadow-sm ${
+                      selectedCats.includes(cat.id)
+                        ? 'bg-primary text-white'
+                        : 'bg-surface-container text-on-surface-variant hover:bg-surface-container-high'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
 
-              {isCreatingCategory ? (
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  onKeyDown={handleCreateCategory}
-                  onBlur={handleCreateCategory}
-                  className="px-4 py-2 rounded-full text-[12px] bg-white border border-slate-200 focus:outline-none focus:border-primary shadow-sm w-[120px]"
-                  autoFocus
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsCreatingCategory(true)}
-                  className="px-4 py-2 rounded-full text-[12px] font-semibold text-primary bg-primary/5 hover:bg-primary/10 transition-colors border border-primary/20 flex items-center gap-1 shadow-sm"
-                >
-                  + Category
-                </button>
-              )}
+                {isCreatingCategory ? (
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    onKeyDown={handleCreateCategory}
+                    onBlur={handleCreateCategory}
+                    className="px-4 py-2 rounded-full text-[12px] bg-white border border-slate-200 focus:outline-none focus:border-primary shadow-sm w-[120px]"
+                    autoFocus
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingCategory(true)}
+                    className="px-4 py-2 rounded-full text-[12px] font-semibold text-primary bg-primary/5 hover:bg-primary/10 transition-colors border border-primary/20 flex items-center gap-1 shadow-sm"
+                  >
+                    + Category
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
           )}
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
