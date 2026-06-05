@@ -61,6 +61,12 @@ export const api = {
   markNotificationsRead: () =>
     fetchJson(`/notifications/read`, { method: 'PATCH' }).then(r => r.data),
 
+  deleteNotification: (id: number) =>
+    fetchJson(`/notifications/${id}`, { method: 'DELETE' }).then(r => r.data),
+
+  clearNotifications: () =>
+    fetchJson(`/notifications`, { method: 'DELETE' }).then(r => r.data),
+
   // Tasks
   getTasks: (params?: Record<string, string>) =>
     fetchJson(`/tasks?${new URLSearchParams(params || {}).toString()}`).then(r => r.data),

@@ -29,6 +29,8 @@ def run_startup_migrations(app):
 
         if 'notifications' not in table_names:
             db.create_all()
+        if 'notification_dismissals' not in table_names:
+            db.create_all()
 
 
 def add_user_id_column(table_name, dialect):

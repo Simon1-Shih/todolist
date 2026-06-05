@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bell, LogOut, Search, Settings } from 'lucide-react';
+import { Bell, LogOut, Search, Settings, X } from 'lucide-react';
 import type { AppUser, NotificationItem } from '../App';
 import { api } from '../api';
 
@@ -17,10 +17,12 @@ interface HeaderProps {
   notifications?: NotificationItem[];
   onOpenNotifications?: () => void;
   onMarkNotificationsRead?: () => void;
+  onDeleteNotification?: (id: number) => void;
+  onClearNotifications?: () => void;
   onSelectUser: (user: AppUser) => void;
 }
 
-export function Header({ viewMode, onSwitchView, hideCalendarToggle, user, onLogout, notifications = [], onOpenNotifications, onMarkNotificationsRead, onSelectUser }: HeaderProps) {
+export function Header({ viewMode, onSwitchView, hideCalendarToggle, user, onLogout, notifications = [], onOpenNotifications, onMarkNotificationsRead, onDeleteNotification, onClearNotifications, onSelectUser }: HeaderProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [userQuery, setUserQuery] = useState('');
@@ -180,8 +182,17 @@ export function Header({ viewMode, onSwitchView, hideCalendarToggle, user, onLog
 
             {isNotificationsOpen && (
               <div className="absolute right-0 top-12 w-80 rounded-md border border-slate-200 bg-white shadow-lg py-2 z-30">
-                <div className="px-4 py-3 border-b border-slate-100">
+                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100">
                   <p className="text-[14px] font-semibold text-slate-900">Notifications</p>
+                  {notifications.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={onClearNotifications}
+                      className="rounded-md px-2 py-1 text-[12px] font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+                    >
+                      清除通知
+                    </button>
+                  )}
                 </div>
                 <div className="max-h-80 overflow-y-auto p-2 space-y-2">
                   {notifications.length === 0 ? (
@@ -190,13 +201,24 @@ export function Header({ viewMode, onSwitchView, hideCalendarToggle, user, onLog
                     notifications.map(notification => (
                       <div
                         key={notification.id}
-                        className={`rounded-md px-3 py-2 text-[13px] font-medium ${
+                        className={`flex items-start gap-2 rounded-md px-3 py-2 text-[13px] font-medium ${
                           notification.variant === 'success'
                             ? 'bg-emerald-50 text-emerald-800 border border-emerald-100'
                             : 'bg-red-50 text-red-700 border border-red-100'
                         }`}
                       >
-                        {notification.message}
+                        <span className="min-w-0 flex-1">{notification.message}</span>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onDeleteNotification?.(notification.id);
+                          }}
+                          className="shrink-0 rounded-full p-0.5 opacity-70 transition-colors hover:bg-white/70 hover:opacity-100"
+                          aria-label="Delete notification"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
                       </div>
                     ))
                   )}

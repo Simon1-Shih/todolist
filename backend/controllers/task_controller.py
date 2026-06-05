@@ -5,6 +5,7 @@ from sqlalchemy import case
 from backend.models import db
 from backend.models.category import Category
 from backend.models.notification import Notification
+from backend.models.notification_dismissal import NotificationDismissal
 from backend.models.task import Task
 from backend.models.user import User
 
@@ -68,6 +69,14 @@ class TaskController:
             Notification.status == status,
         ).first()
         if exists:
+            return
+
+        dismissed = NotificationDismissal.query.filter(
+            NotificationDismissal.user_id == recipient_id,
+            NotificationDismissal.task_id == task.id,
+            NotificationDismissal.status == status,
+        ).first()
+        if dismissed:
             return
 
         db.session.add(Notification(

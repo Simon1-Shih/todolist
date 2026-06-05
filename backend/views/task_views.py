@@ -3,6 +3,7 @@ from backend.auth import oauth
 from backend.models import db
 from backend.models.category import Category
 from backend.models.notification import Notification
+from backend.models.notification_dismissal import NotificationDismissal
 from backend.models.task import Task
 from backend.models.user import User
 from backend.controllers.task_controller import TaskController
@@ -217,6 +218,46 @@ def mark_notifications_read():
     Notification.query.filter(Notification.user_id == current_user_id(), Notification.read == False).update({'read': True})
     db.session.commit()
     return jsonify({'success': True, 'data': {'read': True}})
+
+
+def dismiss_notification(notification):
+    exists = NotificationDismissal.query.filter(
+        NotificationDismissal.user_id == notification.user_id,
+        NotificationDismissal.task_id == notification.task_id,
+        NotificationDismissal.status == notification.status,
+    ).first()
+    if not exists:
+        db.session.add(NotificationDismissal(
+            user_id=notification.user_id,
+            task_id=notification.task_id,
+            status=notification.status,
+        ))
+
+
+@api_bp.route('/notifications/<int:notification_id>', methods=['DELETE'])
+def delete_notification(notification_id):
+    notification = Notification.query.filter(
+        Notification.id == notification_id,
+        Notification.user_id == current_user_id(),
+    ).first()
+    if not notification:
+        return jsonify({'success': False, 'error': 'Notification not found', 'status_code': 404}), 404
+
+    dismiss_notification(notification)
+    db.session.delete(notification)
+    db.session.commit()
+    return jsonify({'success': True, 'data': {'id': notification_id}})
+
+
+@api_bp.route('/notifications', methods=['DELETE'])
+def clear_notifications():
+    notifications = Notification.query.filter(Notification.user_id == current_user_id()).all()
+    deleted = len(notifications)
+    for notification in notifications:
+        dismiss_notification(notification)
+        db.session.delete(notification)
+    db.session.commit()
+    return jsonify({'success': True, 'data': {'deleted': deleted}})
 
 
 @api_bp.route('/tasks/<int:task_id>', methods=['GET'])

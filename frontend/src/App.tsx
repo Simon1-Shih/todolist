@@ -361,6 +361,28 @@ function App() {
     }
   };
 
+  const handleDeleteNotification = async (id: number) => {
+    const oldNotifications = [...notifications];
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+    try {
+      await api.deleteNotification(id);
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+      setNotifications(oldNotifications);
+    }
+  };
+
+  const handleClearNotifications = async () => {
+    const oldNotifications = [...notifications];
+    setNotifications([]);
+    try {
+      await api.clearNotifications();
+    } catch (err) {
+      console.error('Failed to clear notifications:', err);
+      setNotifications(oldNotifications);
+    }
+  };
+
   const handleAddCategory = async (name: string): Promise<Category | undefined> => {
     if (!name || name.trim() === '') return undefined;
     const oldCategories = [...categories];
@@ -677,6 +699,8 @@ function App() {
           notifications={notifications}
           onOpenNotifications={handleOpenNotifications}
           onMarkNotificationsRead={handleMarkNotificationsRead}
+          onDeleteNotification={handleDeleteNotification}
+          onClearNotifications={handleClearNotifications}
           onSelectUser={handleSelectUser}
         />
 
